@@ -2,19 +2,25 @@
 
 Make sure your data is still intact.
 
-A simple utility, mostly geared towards enabling you to notice when cold backup of data needs to be re-created due to failing storage or similar issues. It keeps a simple index file listing hashes of all files in your archive.
+A simple utility, mostly geared towards enabling you to notice when cold backup of data needs to be re-created due to failing storage or similar issues. It keeps a simple text file `index.txt` listing hashes of all files in your archive.
+
+It assumes that you have a hot version of a file archive (on your pc maybe), and a cold version of the exact same archive (on a removable storage maybe), and that you occasionally sync and verify them.
 
 ## Install
 
-Depends on Python 3.5+ and two pip libraries: xxhash and tqdm.
+Depends on Python 3.8+ and two pip libraries: xxhash and tqdm.
 
     pip install -r requirements.txt
 
 ## Usage
+`dintact check <cold_directory>`
 
-    dintact.py [-h] [-a ADD] index
+--- or ---
 
-* `-a`: File or directory to start tracking. Repeat multiple times to add several things at once.
-* `index`: Location of the index files where hashes are (to be) stored.
+`dintact sync <hot_directory> <cold_directory>`
 
-Note that dintact uses file paths relative to current working directory.
+Basic operations:
+1. insert
+2. delete
+3. modify
+4. move 
