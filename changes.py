@@ -38,7 +38,7 @@ class Change:
     has_been: str  # description of what has happened in hot copy
     action: str  # description of what could be done to mimic it in cold backup
 
-    def __init__(self, name: PurePath, size: int, index: Union[Index, None] = None):
+    def __init__(self, name: PurePath, size: int, index: Union[Index, str, None] = None):
         self.name = name
         self.size = size
         self.index = index
@@ -50,17 +50,21 @@ class Change:
         :param cold_dir: cold copy base path
         :param index: cold copy index, will be modified accordingly
         """
-        pass
 
-    def __repr__(self):
+    def __str__(self):
         return f"{self.name} has been {self.has_been}, do you want to {self.action}?"
 
-    def __eq__(self, o: object) -> bool:
-        return repr(self).__eq__(repr(o))
+    def __id_members(self):
+        return type(self), self.name
 
-    def __hash__(self) -> int:
-        return repr(self).__hash__()
+    def __eq__(self, other):
+        if isinstance(other, Change):
+            return self.__id_members() == other.__id_members()
+        else:
+            return False
 
+    def __hash__(self):
+        return hash(self.__id_members())
 
 class AddedCopied(Change):
     has_been = "added and manually copied (without updating the index)"
@@ -98,7 +102,7 @@ class Removed(Change):
     has_been = "removed"
     action = "remove it from cold backup"
 
-    def _apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
+    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
         rm(cold_dir / self.name)
         del index[self.name]
 
@@ -111,7 +115,7 @@ class Modified(Change):
     has_been = "modified"
     action = "copy it to cold backup"
 
-    def _apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
+    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
         rm(cold_dir / self.name)
         cp(hot_dir / self.name, cold_dir / self.name)
         index[self.name] = self.index
@@ -119,6 +123,10 @@ class Modified(Change):
 
 class Corrupted(Modified):
     has_been = "corrupted (in cold backup)"
+
+    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
+        rm(cold_dir / self.name)
+        cp(hot_dir / self.name, cold_dir / self.name)
 
 
 class ModifiedCorrupted(Modified):
@@ -134,7 +142,7 @@ class Appeared(Change):
     has_been = "manually added to cold backup (but not index)"
     action = "delete if from cold backup"
 
-    def _apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
+    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
         rm(cold_dir / self.name)
 
 
@@ -142,5 +150,5 @@ class RemovedLost(Change):
     has_been = "removed from hot and lost from cold backup"
     action = "remove it from index"
 
-    def _apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
+    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
         del index[self.name]

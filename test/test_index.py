@@ -78,6 +78,52 @@ class Test(TestCase):
         self.assertEqual('3', i[PurePath('c/d')])
         self.assertEqual('y', i[PurePath('c/e')])
 
+    def test_repr(self):
+        i = Index()
+        i[PurePath('b')] = 'x'
+        i[PurePath('c/e')] = 'y'
+
+        self.assertEqual("Index(files: {PureWindowsPath('b'): 'x'}, "
+                         "dirs: {PureWindowsPath('c'): Index(files: {PureWindowsPath('e'): 'y'}, dirs: {})})",
+                         repr(i))
+
+    def test_eq(self):
+        i = Index()
+        i[PurePath('b')] = 'x'
+        i[PurePath('c/e')] = 'y'
+
+        j = Index()
+        j[PurePath('b')] = 'x'
+        j[PurePath('c/e')] = 'y'
+        self.assertEqual(i, j)
+
+        j = Index()
+        j[PurePath('b')] = 'z'
+        j[PurePath('c/e')] = 'y'
+        self.assertNotEqual(i, j)
+
+        j = Index()
+        j[PurePath('b')] = 'x'
+        j[PurePath('c/e')] = 'z'
+        self.assertNotEqual(i, j)
+
+        j = Index()
+        j[PurePath('z')] = 'x'
+        j[PurePath('c/e')] = 'y'
+        self.assertNotEqual(i, j)
+
+        j = Index()
+        j[PurePath('b')] = 'x'
+        j[PurePath('z/e')] = 'y'
+        self.assertNotEqual(i, j)
+
+        j = Index()
+        j[PurePath('b')] = 'x'
+        j[PurePath('c/z')] = 'y'
+        self.assertNotEqual(i, j)
+
+        self.assertNotEqual(i, 10)
+
     @staticmethod
     def index_del(i, p):
         del i[PurePath(p)]
@@ -126,3 +172,9 @@ class Test(TestCase):
         i[PurePath('a')] = '1'
         i[PurePath('c/d')] = '2'
         self.assert_index_file("1 a\n2 c/d\n", i)
+
+    def test_multiple_folders(self):
+        i = Index()
+        i[PurePath('a/b')] = '1'
+        i[PurePath('c/d')] = '2'
+        self.assert_index_file("1 a/b\n2 c/d\n", i)

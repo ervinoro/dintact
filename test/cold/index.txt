@@ -3,8 +3,21 @@
 fcf276abc78c6272 Removed.txt
 7871fa4e1a6de8b9 Modified.txt
 5afa14a82295204f OK.txt
-aaaaaaaaaaaaaaaa ModifiedCopied.txt
-aaaaaaaaaaaaaaaa ModifiedCorrupted.txt
-aaaaaaaaaaaaaaaa RemovedCorrupted.txt
-aaaaaaaaaaaaaaaa ModifiedLost.txt
-aaaaaaaaaaaaaaaa RemovedLost.txt
+
+d24ec4f1a98c6e5b Lost/a.txt
+78452aa11af39f9b Lost/b.txt
+d24ec4f1a98c6e5b Removed/a.txt
+78452aa11af39f9b Removed/b.txt
+
+xxxxxxxxxxxxxxxx ModifiedCopied.txt
+xxxxxxxxxxxxxxxx ModifiedCorrupted.txt
+xxxxxxxxxxxxxxxx RemovedCorrupted.txt
+xxxxxxxxxxxxxxxx ModifiedLost.txt
+xxxxxxxxxxxxxxxx RemovedLost.txt
+
+xxxxxxxxxxxxxxxx ModifiedLost/a.txt
+xxxxxxxxxxxxxxxx ModifiedLost/b.txt
+xxxxxxxxxxxxxxxx RemovedCorrupted/a.txt
+xxxxxxxxxxxxxxxx RemovedCorrupted/b.txt
+xxxxxxxxxxxxxxxx RemovedLost/a.txt
+xxxxxxxxxxxxxxxx RemovedLost/b.txt

@@ -3,10 +3,12 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Generator, Tuple
+from typing import Generator, Tuple, Union
 
 from tqdm import tqdm
 import xxhash
+
+from index import Index
 
 CHUNK_SIZE: int = 4096
 
@@ -46,6 +48,23 @@ def hash_compare_files(a_path: Path, b_path: Path, pbar: tqdm) -> Tuple[str, str
     return a_x.hexdigest(), b_x.hexdigest(), eq
 
 
+def hash_tree(path: Path, pbar: tqdm) -> Tuple[Union[Index, str], int]:
+    """Calculate index of a path recursively"""
+    i = Index()
+    size = 0
+    if path.is_dir():
+        for f in path.rglob("*"):
+            if f.is_file():
+                i[f.relative_to(path)] = hash_file(f, pbar)
+                size += f.stat().st_size
+    elif path.is_file():
+        i = hash_file(path, pbar)
+        size += path.stat().st_size
+    else:
+        raise NotImplementedError(f"Unknown {path}")
+    return i, size
+
+
 def cp(source: os.PathLike, target: os.PathLike):
     assert not os.path.exists(target), "remove explicitly first (internal error)"
     if os.path.isdir(source):
@@ -67,6 +86,7 @@ def rm(target: os.PathLike):
 
 
 def yesno(prompt: str, default: bool = True) -> bool:
+    """Presents user with the prompt until it gets an answer"""
     while True:
         answer = input(prompt + (" [Y/n] " if default else " [y/N] "))
         if answer.strip() == "":

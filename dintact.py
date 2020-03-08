@@ -4,8 +4,9 @@ from collections import defaultdict
 from typing import List
 
 from changes import *
-from index import Index
 from utils import *
+
+from utils import hash_tree
 
 # noinspection PyShadowingBuiltins
 print = tqdm.write
@@ -32,23 +33,6 @@ def check(args: argparse.Namespace):
                     print(f"File missing from index: '{relpath}'.", file=sys.stderr)
 
 
-def walk_tree(path: Path, pbar: tqdm) -> Tuple[Union[Index, str], int]:
-    """Calculate index of a path recursively"""
-    i = Index()
-    size = 0
-    if path.is_dir():
-        for f in path.rglob("*"):
-            if f.is_file():
-                i[f.relative_to(path)] = hash_file(f, pbar)
-                size += f.stat().st_size
-    elif path.is_file():
-        i = hash_file(path, pbar)
-        size += path.stat().st_size
-    else:
-        raise NotImplementedError(f"Unknown {path}")
-    return i, size
-
-
 def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path, pbar: tqdm) -> List[Change]:
     """Calculate hashes for all files in both trees recursively (creates index for hot, validates index for cold)
 
@@ -64,25 +48,23 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
 
     if (hot_dir/path).is_file() and (cold_dir/path).is_file():
         hot_hash, cold_hash, eq = hash_compare_files(hot_dir/path, cold_dir/path, pbar)
-        hot_index = Index()
-        hot_index[path] = hot_hash
         if eq:
             if path not in cold_index:
-                return [AddedCopied(path, 0, hot_index)]
+                return [AddedCopied(path, 0, hot_hash)]
             elif cold_index[path] != cold_hash:
-                return [ModifiedCopied(path, os.path.getsize(hot_dir / path), hot_index)]
+                return [ModifiedCopied(path, os.path.getsize(hot_dir / path), hot_hash)]
             else:
                 return []
         else:
             if path not in cold_index:
-                return [AddedAppeared(path, (hot_dir/path).stat().st_size, hot_index)]
+                return [AddedAppeared(path, (hot_dir / path).stat().st_size, hot_hash)]
             elif cold_index[path] != cold_hash:
                 if hot_hash == cold_index[path]:
-                    return [Corrupted(path, os.path.getsize(hot_dir / path), hot_index)]
+                    return [Corrupted(path, os.path.getsize(hot_dir / path), hot_hash)]
                 else:
-                    return [ModifiedCorrupted(path, os.path.getsize(hot_dir / path), hot_index)]
+                    return [ModifiedCorrupted(path, os.path.getsize(hot_dir / path), hot_hash)]
             else:
-                return [Modified(path, (hot_dir / path).stat().st_size, hot_index)]
+                return [Modified(path, (hot_dir / path).stat().st_size, hot_hash)]
 
     elif not (hot_dir/path).is_dir() or not (cold_dir/path).is_dir():
         raise NotImplementedError("File/Folder name collision")
@@ -96,7 +78,7 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
 
     only_hot_children = set(hot_children).difference(cold_children)
     for hot_child in only_hot_children:
-        i, size = walk_tree(hot_dir/hot_child, pbar)
+        i, size = hash_tree(hot_dir / hot_child, pbar)
         if hot_child not in cold_index:
             changes.append(Added(hot_child, size, i))
         elif i == cold_index[hot_child]:
@@ -109,13 +91,14 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
         if cold_child not in cold_index:
             changes.append(Appeared(cold_child, 0))
         else:
-            i, size = walk_tree(cold_dir/cold_child, pbar)
+            i, size = hash_tree(cold_dir / cold_child, pbar)
             if i == cold_index[cold_child]:
                 changes.append(Removed(cold_child, 0))
             else:
                 changes.append(RemovedCorrupted(cold_child, 0))
 
-    removedlost = set(cold_index.keys()).difference(hot_children).difference(cold_children)
+    removedlost = set(cold_index.dirs.keys()).union(cold_index.files.keys())\
+        .difference(hot_children).difference(cold_children)
     for removedlost_child in removedlost:
         changes.append(RemovedLost(removedlost_child, 0))
 

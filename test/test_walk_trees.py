@@ -8,9 +8,9 @@ from changes import *
 
 
 class TestWalkTrees(unittest.TestCase):
-    def test_something(self):
+    def test_bundled_folder(self):
         pbar = mock.MagicMock()
-        changes = walk_trees(PurePath(), Index(Path('test/cold')), Path('test/hot'), Path('test/cold'), pbar)
+        changes = walk_trees(PurePath(), Index(Path('cold')), Path('hot'), Path('cold'), pbar)
         self.assertEqual({
             ModifiedCopied(PurePath('ModifiedCopied.txt'), 0),
             Modified(PurePath('Modified.txt'), 0),
@@ -24,5 +24,12 @@ class TestWalkTrees(unittest.TestCase):
             Removed(PurePath('Removed.txt'), 0),
             RemovedCorrupted(PurePath('RemovedCorrupted.txt'), 0),
             Appeared(PurePath('Appeared.txt'), 0),
-            RemovedLost(PurePath('RemovedLost.txt'), 0)
+            RemovedLost(PurePath('RemovedLost.txt'), 0),
+            ModifiedLost(PurePath('ModifiedLost'), 0),
+            Lost(PurePath('Lost'), 0),
+            Added(PurePath('Added'), 0),
+            RemovedCorrupted(PurePath('RemovedCorrupted'), 0),
+            Removed(PurePath('Removed'), 0),
+            Appeared(PurePath('Appeared'), 0),
+            RemovedLost(PurePath('RemovedLost'), 0)
         }, set(changes))

@@ -24,7 +24,7 @@ class Index(collections.abc.MutableMapping):
                 self.path.touch(exist_ok=False)
             with self.path.open('r', encoding='utf8') as file:
                 for line in file:
-                    if not line:
+                    if not line.strip():
                         continue
                     checksum, name = line.strip().split(" ", 1)
                     self[PurePath(name)] = checksum
@@ -84,10 +84,19 @@ class Index(collections.abc.MutableMapping):
                 raise KeyError(f"{k} not found")
 
     def iters(self) -> List[Iterator[PurePath]]:
-        return [map(lambda n: d/n, i) for d in self.dirs.keys() for i in self.dirs[d].iters()] + [iter(self.files)]
+        return [list(map(lambda n: d/n, i)) for d in self.dirs.keys() for i in self.dirs[d].iters()] + [iter(self.files)]
 
     def __iter__(self) -> Iterator[str]:
         return itertools.chain(*self.iters())
 
-    def __str__(self) -> str:
-        return f"Index(files: {str(self.files)}, dirs: {str(self.dirs)})"
+    def __repr__(self) -> str:
+        return f"Index(files: {repr(self.files)}, dirs: {repr(self.dirs)})"
+
+    def __id_members(self):
+        return self.dirs, self.files
+
+    def __eq__(self, other):
+        if type(other) is type(self):
+            return self.__id_members() == other.__id_members()
+        else:
+            return False
