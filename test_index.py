@@ -60,6 +60,24 @@ class Test(TestCase):
         index[PurePath('y/x')] = '6'
         self.assertEqual({PurePath('x'), PurePath('y/x')}, set(index))
 
+    def test_update(self):
+        i = Index()
+        i[PurePath('a')] = '1'
+        i[PurePath('b')] = '2'
+        i[PurePath('c/d')] = '3'
+        i[PurePath('c/e')] = '4'
+
+        j = Index()
+        j[PurePath('b')] = 'x'
+        j[PurePath('c/e')] = 'y'
+
+        i.update(j)
+
+        self.assertEqual('1', i[PurePath('a')])
+        self.assertEqual('x', i[PurePath('b')])
+        self.assertEqual('3', i[PurePath('c/d')])
+        self.assertEqual('y', i[PurePath('c/e')])
+
     @staticmethod
     def index_del(i, p):
         del i[PurePath(p)]
