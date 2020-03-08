@@ -52,8 +52,14 @@ class Change:
         """
         pass
 
-    def __str__(self):
+    def __repr__(self):
         return f"{self.name} has been {self.has_been}, do you want to {self.action}?"
+
+    def __eq__(self, o: object) -> bool:
+        return repr(self).__eq__(repr(o))
+
+    def __hash__(self) -> int:
+        return repr(self).__hash__()
 
 
 class AddedCopied(Change):

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 from collections import defaultdict
-from pathlib import PurePath
 from typing import List
 
 from changes import *
@@ -120,7 +119,7 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
     for removedlost_child in removedlost:
         changes.append(RemovedLost(removedlost_child, 0))
 
-    for child in set(hot_children) & set(cold_children) & set(cold_index.keys()):
+    for child in set(hot_children) & set(cold_children):
         ch_changes = walk_trees(child, cold_index, hot_dir, cold_dir, pbar)
         changes.extend(ch_changes)
 
