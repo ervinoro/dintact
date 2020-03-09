@@ -66,12 +66,13 @@ def hash_tree(path: Path, pbar: tqdm) -> Tuple[Union[Index, str], int]:
 
 
 def cp(source: os.PathLike, target: os.PathLike):
+    assert os.path.exists(source), "can't copy, doesn't exist (internal error)"
     assert not os.path.exists(target), "remove explicitly first (internal error)"
     if os.path.isdir(source):
         shutil.copytree(source, target)
     elif os.path.isfile(source):
         shutil.copyfile(source, target)
-    else:
+    else:  # pragma: no cover
         raise Exception(f"Unknown thing {source}")
 
 
@@ -81,7 +82,7 @@ def rm(target: os.PathLike):
         shutil.rmtree(target)
     elif os.path.isfile(target):
         os.remove(target)
-    else:
+    else:  # pragma: no cover
         raise Exception(f"Unknown thing {target}")
 
 

@@ -1,3 +1,4 @@
+import tempfile
 from io import StringIO
 from unittest import TestCase
 import unittest.mock as mock
@@ -90,8 +91,61 @@ class TestHashFile(TestCase):
 
 class TestHashTree(TestCase):
     def test_unknown(self):
-        with self.assertRaises(Exception) as context:
+        with self.assertRaises(Exception):
             hash_tree(Path('asdf_path'), mock.MagicMock())
+
+
+class TestCp(TestCase):
+    def test_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            (tmpdir/'a.txt').write_text("asdf_content")
+            cp(tmpdir/'a.txt', tmpdir/'b.txt')
+            self.assertTrue((tmpdir/'a.txt').exists())
+            self.assertEqual("asdf_content", (tmpdir/'a.txt').read_text())
+            self.assertTrue((tmpdir/'b.txt').exists())
+            self.assertEqual("asdf_content", (tmpdir/'b.txt').read_text())
+
+    def test_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            (tmpdir/'c').mkdir()
+            (tmpdir/'c'/'a.txt').write_text("asdf_content")
+            (tmpdir/'c'/'b.txt').write_text("bsdf_content")
+            cp(tmpdir/'c', tmpdir/'d')
+            self.assertTrue((tmpdir/'c').exists())
+            self.assertEqual("asdf_content", (tmpdir/'c'/'a.txt').read_text())
+            self.assertEqual("bsdf_content", (tmpdir/'c'/'b.txt').read_text())
+            self.assertTrue((tmpdir/'d').exists())
+            self.assertEqual("asdf_content", (tmpdir/'d'/'a.txt').read_text())
+            self.assertEqual("bsdf_content", (tmpdir/'d'/'b.txt').read_text())
+
+    def test_non_existing(self):
+        with self.assertRaises(AssertionError):
+            cp(Path('asdf_path'), Path('asdf_path'))
+
+
+class TestRm(TestCase):
+    def test_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            (tmpdir/'a.txt').write_text("asdf_content")
+            rm(tmpdir/'a.txt')
+            self.assertFalse((tmpdir/'a.txt').exists())
+
+    def test_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            (tmpdir/'c').mkdir()
+            (tmpdir/'c'/'a.txt').write_text("asdf_content")
+            (tmpdir/'c'/'b.txt').write_text("bsdf_content")
+            rm(tmpdir/'c')
+            self.assertFalse((tmpdir/'c').exists())
+
+    def test_non_existing(self):
+        with self.assertRaises(AssertionError):
+            rm(Path('asdf_path'))
+
 
 
 class TestYesNo(TestCase):
