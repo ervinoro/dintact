@@ -42,24 +42,23 @@ class Index(collections.abc.MutableMapping):
 
     def __getitem__(self, k: PurePath) -> Union[str, Index]:
         assert not k.is_absolute(), "Index keys must be relative paths"
-        if len(k.parts) > 1:
-            return self.dirs[PurePath(k.parts[0])][PurePath(*k.parts[1:])]
-        else:
+        if len(k.parts) == 0:
+            return self
+        elif len(k.parts) == 1:
             if k in self.files:
                 return self.files[k]
             elif k in self.dirs:
                 return self.dirs[k]
             else:
                 raise KeyError(f"{k} not found")
+        else:
+            return self.dirs[PurePath(k.parts[0])][PurePath(*k.parts[1:])]
 
     def __setitem__(self, k: PurePath, v: Union[str, Index]) -> None:
         assert not k.is_absolute(), "Index keys must be relative paths"
-        if len(k.parts) > 1:
-            assert PurePath(k.parts[0]) not in self.files, "file/directory name collision"
-            if PurePath(k.parts[0]) not in self.dirs:
-                self[PurePath(k.parts[0])] = Index()
-            self.dirs[PurePath(k.parts[0])][PurePath(*k.parts[1:])] = v
-        else:
+        if len(k.parts) == 0:
+            raise ValueError("can't set self (i think)")
+        elif len(k.parts) == 1:
             if isinstance(v, str):
                 assert k not in self.dirs
                 self.files[k] = v
@@ -68,20 +67,27 @@ class Index(collections.abc.MutableMapping):
                 self.dirs[k] = v
             else:
                 raise TypeError(f"Unallowed value of type {type(v)}")
+        else:
+            assert PurePath(k.parts[0]) not in self.files, "file/directory name collision"
+            if PurePath(k.parts[0]) not in self.dirs:
+                self[PurePath(k.parts[0])] = Index()
+            self.dirs[PurePath(k.parts[0])][PurePath(*k.parts[1:])] = v
 
     def __delitem__(self, k: PurePath) -> None:
         assert not k.is_absolute(), "Index keys must be relative paths"
-        if len(k.parts) > 1:
-            del self.dirs[PurePath(k.parts[0])][PurePath(*k.parts[1:])]
-            if not self.dirs[PurePath(k.parts[0])]:
-                del self.dirs[PurePath(k.parts[0])]
-        else:
+        if len(k.parts) == 0:
+            raise ValueError("can't del self (i think)")
+        elif len(k.parts) == 1:
             if k in self.files:
                 del self.files[k]
             elif k in self.dirs:
                 del self.dirs[k]
             else:
                 raise KeyError(f"{k} not found")
+        else:
+            del self.dirs[PurePath(k.parts[0])][PurePath(*k.parts[1:])]
+            if not self.dirs[PurePath(k.parts[0])]:
+                del self.dirs[PurePath(k.parts[0])]
 
     def iters(self) -> List[Iterator[PurePath]]:
         return [list(map(lambda n: d/n, i)) for d in self.dirs.keys() for i in self.dirs[d].iters()] + [iter(self.files)]

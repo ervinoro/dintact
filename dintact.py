@@ -71,8 +71,10 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
 
     changes = []
 
-    hot_children: List[PurePath] = list(map(lambda abs_path: abs_path.relative_to(hot_dir), (hot_dir/path).iterdir()))
-    cold_children: List[PurePath] = list(map(lambda abs_path: abs_path.relative_to(cold_dir), (cold_dir/path).iterdir()))
+    hot_children: List[PurePath] = list(map(lambda abs_path: abs_path.relative_to(hot_dir),
+                                            (hot_dir/path).iterdir()))
+    cold_children: List[PurePath] = list(map(lambda abs_path: abs_path.relative_to(cold_dir),
+                                             (cold_dir/path).iterdir()))
     if path == PurePath():
         cold_children.remove(PurePath("index.txt"))
 
@@ -97,7 +99,8 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
             else:
                 changes.append(RemovedCorrupted(cold_child, 0))
 
-    removedlost = set(cold_index.dirs.keys()).union(cold_index.files.keys())\
+    removedlost = set(map(lambda p: path/p, cold_index[path].dirs.keys()))\
+        .union(map(lambda p: path/p, cold_index[path].files.keys()))\
         .difference(hot_children).difference(cold_children)
     for removedlost_child in removedlost:
         changes.append(RemovedLost(removedlost_child, 0))

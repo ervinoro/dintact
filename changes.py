@@ -51,7 +51,7 @@ class Change:
         :param index: cold copy index, will be modified accordingly
         """
 
-    def __str__(self):
+    def __repr__(self):
         return f"{self.name} has been {self.has_been}, do you want to {self.action}?"
 
     def __id_members(self):

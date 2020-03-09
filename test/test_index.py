@@ -20,6 +20,8 @@ class Test(TestCase):
         self.assertEqual(0, len(index))
         self.assertFalse(index.keys())
 
+    def test_multipart(self):
+        index = Index()
         index[PurePath('a/b')] = '2'
         self.assertEqual(1, len(index))
         self.assertIn(PurePath('a/b'), index)
@@ -33,6 +35,27 @@ class Test(TestCase):
         self.assertEqual(0, len(index))
         self.assertFalse(index.keys())
 
+    def test_multipart_single_del(self):
+        index = Index()
+        index[PurePath('a/b')] = '2'
+        index[PurePath('a/c')] = '3'
+
+        del index[PurePath('a/b')]
+        self.assertEqual(1, len(index))
+        self.assertNotIn(PurePath('a/b'), index)
+        self.assertEqual('3', index[PurePath('a/c')])
+
+    def test_self(self):
+        i = Index()
+        i[PurePath('a')] = '1'
+        self.assertEqual(i, i[PurePath()])
+        with self.assertRaises(ValueError):
+            i[PurePath()] = '2'
+        with self.assertRaises(ValueError):
+            del i[PurePath()]
+
+    def test_asdf(self):
+        index = Index()
         index[PurePath('a')] = '3'
         self.assertEqual(1, len(index))
         self.assertIn(PurePath('a'), index)
@@ -42,6 +65,8 @@ class Test(TestCase):
         self.assertEqual(0, len(index))
         self.assertFalse(index.keys())
 
+    def test_subindex(self):
+        index = Index()
         subindex = Index()
         subindex[PurePath('c')] = '4'
         index[PurePath('d')] = subindex
@@ -56,6 +81,8 @@ class Test(TestCase):
         self.assertEqual(0, len(index))
         self.assertFalse(index.keys())
 
+    def test_keyset(self):
+        index = Index()
         index[PurePath('x')] = '5'
         index[PurePath('y/x')] = '6'
         self.assertEqual({PurePath('x'), PurePath('y/x')}, set(index))
