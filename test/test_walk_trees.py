@@ -1,17 +1,16 @@
 import unittest
-from pathlib import PurePath, Path
+from pathlib import Path
 from unittest import mock
 
-from dintact import walk_trees
-from index import Index
 from changes import *
+from dintact import walk_trees
 
 
 class TestWalkTrees(unittest.TestCase):
     def test_bundled_folder(self):
         pbar = mock.MagicMock()
         changes = walk_trees(PurePath(), Index(Path('cold')), Path('hot'), Path('cold'), pbar)
-        self.assertEqual({
+        self.assertEqual(sorted([
             ModifiedCopied(PurePath('ModifiedCopied.txt'), 0),
             Modified(PurePath('Modified.txt'), 0),
             Corrupted(PurePath('Corrupted.txt'), 0),
@@ -32,4 +31,4 @@ class TestWalkTrees(unittest.TestCase):
             Removed(PurePath('Removed'), 0),
             Appeared(PurePath('Appeared'), 0),
             RemovedLost(PurePath('RemovedLost'), 0)
-        }, set(changes))
+        ], key=repr), sorted(changes, key=repr))
