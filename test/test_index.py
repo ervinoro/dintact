@@ -1,6 +1,5 @@
-import os
-from unittest import TestCase, mock
 from pathlib import PurePath, Path
+from unittest import TestCase, mock
 
 from index import Index
 
@@ -150,6 +149,12 @@ class Test(TestCase):
         self.assertNotEqual(i, j)
 
         self.assertNotEqual(i, 10)
+
+    def test_iterdir(self):
+        index = Index()
+        index[PurePath('a/b')] = '1'
+        index[PurePath('c')] = '2'
+        self.assertEqual({PurePath('a'), PurePath('c')}, set(index.iterdir()))
 
     @staticmethod
     def index_del(i, p):

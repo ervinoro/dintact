@@ -1,7 +1,7 @@
 import collections
 import itertools
 from pathlib import Path, PurePath
-from typing import Union, List, Iterator, Dict
+from typing import Union, Iterator, Dict
 
 
 class Index:
@@ -89,9 +89,13 @@ class Index(collections.abc.MutableMapping):
             if not self.dirs[PurePath(k.parts[0])]:
                 del self.dirs[PurePath(k.parts[0])]
 
-    def __iter__(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[PurePath]:
         return itertools.chain(*[list(map(lambda n: d[0]/n, iter(d[1]))) for d in self.dirs.items()],
                                iter(self.files))
+
+    def iterdir(self) -> Iterator[PurePath]:
+        """Non-recursive only iterate immediate children"""
+        return itertools.chain(iter(self.dirs), iter(self.files))
 
     def __repr__(self) -> str:
         return f"Index(files: {repr(self.files)}, dirs: {repr(self.dirs)})"
