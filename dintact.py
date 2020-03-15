@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 import argparse
-from collections import defaultdict
 from operator import attrgetter
-from typing import List
+from typing import List, Set
 
 from changes import *
 from utils import *
-
 from utils import hash_tree
 
 # noinspection PyShadowingBuiltins
@@ -76,16 +74,20 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
     else:
         changes = []
 
-        hot_children: List[PurePath] = list(map(lambda abs_path: abs_path.relative_to(hot_dir),
-                                                (hot_dir / path).iterdir()))
-        cold_children: List[PurePath] = list(map(lambda abs_path: abs_path.relative_to(cold_dir),
-                                                 (cold_dir / path).iterdir()))
+        hot_children: Set[PurePath] = set(map(lambda abs_path: abs_path.relative_to(hot_dir),
+                                              filter(lambda p: p.is_file() or any(p.iterdir()),
+                                                     (hot_dir / path).iterdir())))
+        cold_children: Set[PurePath] = set(map(lambda abs_path: abs_path.relative_to(cold_dir),
+                                               filter(lambda p: p.is_file() or any(p.iterdir()),
+                                                      (cold_dir / path).iterdir())))
+        index_children: Set[PurePath] = set(map(lambda p: path / p,
+                                                cold_index[path].iterdir() if path in cold_index else []))
 
         if path == PurePath():
             cold_children.remove(PurePath("index.txt"))
 
-        hot_only = set(hot_children).difference(cold_children)
-        for hot_child in hot_only:
+        # H C I: 1 0 X
+        for hot_child in hot_children.difference(cold_children):
             i, size = hash_tree(hot_dir / hot_child, pbar)
             if hot_child not in cold_index:
                 changes.append(Added(hot_child, size, i))
@@ -94,10 +96,11 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
             else:
                 changes.append(ModifiedLost(hot_child, size, i))
 
-        cold_only = set(cold_children).difference(hot_children)
-        for cold_child in cold_only:
-            if cold_child not in cold_index:  # pbar only contains cold index files
+        # H C I: 0 1 X
+        for cold_child in cold_children.difference(hot_children):
+            if cold_child not in cold_index:
                 changes.append(Appeared(cold_child, 0))
+                pbar.update(sum([f.stat().st_size for f in (cold_dir / cold_child).rglob('*')]))
             else:
                 i, size = hash_tree(cold_dir / cold_child, pbar)
                 if i == cold_index[cold_child]:
@@ -105,15 +108,12 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
                 else:
                     changes.append(RemovedCorrupted(cold_child, 0))
 
-        index_only = set(map(lambda p: path / p, cold_index[path].dirs.keys())) \
-            .union(map(lambda p: path / p, cold_index[path].files.keys())) \
-            .difference(hot_children).difference(cold_children)
-        for index_child in index_only:
+        # H C I: 0 0 1
+        for index_child in index_children.difference(hot_children).difference(cold_children):
             changes.append(RemovedLost(index_child, 0))
-            #  lost files account for 0 in pbar
 
-        # Recursive:
-        for child in set(hot_children) & set(cold_children):
+        # Recursive: (H C I: 1 1 X)
+        for child in hot_children & cold_children:
             ch_changes = walk_trees(child, cold_index, hot_dir, cold_dir, pbar)
             changes.extend(ch_changes)
 
@@ -135,8 +135,8 @@ def sync(args: argparse.Namespace) -> None:
     #     inv_index[v].append(k)
 
     # Set up progress bar
-    total = sum([(cold_dir / p).stat().st_size if (cold_dir / p).exists() else 0 for p in index.keys()])
-    for file in hot_dir.rglob("*"):
+    total = 0
+    for file in itertools.chain(hot_dir.rglob("*"), cold_dir.rglob("*")):
         if file.is_file():
             total += file.stat().st_size
     with tqdm(total=total, unit="B", unit_scale=True) as pbar:
