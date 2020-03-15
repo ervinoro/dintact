@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from collections import defaultdict
+from operator import attrgetter
 from typing import List
 
 from changes import *
@@ -12,7 +13,11 @@ from utils import hash_tree
 print = tqdm.write
 
 
-def check(args: argparse.Namespace):
+def check(args: argparse.Namespace) -> None:
+    """Verify that index matches files, print out any mismatches
+
+    :param args: must have attr cold_dir: str
+    """
     cold_dir = Path(args.cold_dir)
     assert cold_dir.is_dir(), "cold_dir not found!"
     index = Index(cold_dir)
@@ -25,29 +30,28 @@ def check(args: argparse.Namespace):
             if h != hash_file(cold_dir / p, pbar):
                 print(f"Verification failed: '{p}'.", file=sys.stderr)
         # Additionally check that index is complete
-        for root, _, files in os.walk(cold_dir):
-            root = Path(root)
-            for file in files:
-                relpath = (root / file).relative_to(cold_dir)
+        for file in cold_dir.rglob("*"):
+            if file.is_file():
+                relpath: PurePath = file.relative_to(cold_dir)
                 if relpath not in index and relpath != PurePath("index.txt"):
                     print(f"File missing from index: '{relpath}'.", file=sys.stderr)
 
 
 def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path, pbar: tqdm) -> List[Change]:
-    """Calculate hashes for all files in both trees recursively (creates index for hot, validates index for cold)
+    """Compare hot (sub)dir, cold (sub)dir, and cold index. Returns a list of changes required to get them synced.
 
-    It only returns outermost directories/files for each list (except content changes, which it lists all)
+    It only returns outermost directories/files for each change (except content changes, which it lists all)
 
     :param path: current relative path
-    :param cold_index:
+    :param cold_index: the original unchanged cold index
     :param hot_dir: hot base path
     :param cold_dir: cold base path
     :param pbar: will be updated as files get hashed
-    :return: All changes between cold and hot directories
+    :return: All changes between cold and hot directories under current sub path
     """
 
-    if (hot_dir/path).is_file() and (cold_dir/path).is_file():
-        hot_hash, cold_hash, eq = hash_compare_files(hot_dir/path, cold_dir/path, pbar)
+    if (hot_dir / path).is_file() and (cold_dir / path).is_file():
+        hot_hash, cold_hash, eq = hash_compare_files(hot_dir / path, cold_dir / path, pbar)
         if eq:
             if path not in cold_index:
                 return [AddedCopied(path, 0, hot_hash)]
@@ -66,68 +70,77 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
             else:
                 return [Modified(path, (hot_dir / path).stat().st_size, hot_hash)]
 
-    elif not (hot_dir/path).is_dir() or not (cold_dir/path).is_dir():
+    elif not (hot_dir / path).is_dir() or not (cold_dir / path).is_dir():
         raise NotImplementedError("File/Folder name collision")
 
-    changes = []
+    else:
+        changes = []
 
-    hot_children: List[PurePath] = list(map(lambda abs_path: abs_path.relative_to(hot_dir),
-                                            (hot_dir/path).iterdir()))
-    cold_children: List[PurePath] = list(map(lambda abs_path: abs_path.relative_to(cold_dir),
-                                             (cold_dir/path).iterdir()))
-    if path == PurePath():
-        cold_children.remove(PurePath("index.txt"))
+        hot_children: List[PurePath] = list(map(lambda abs_path: abs_path.relative_to(hot_dir),
+                                                (hot_dir / path).iterdir()))
+        cold_children: List[PurePath] = list(map(lambda abs_path: abs_path.relative_to(cold_dir),
+                                                 (cold_dir / path).iterdir()))
 
-    only_hot_children = set(hot_children).difference(cold_children)
-    for hot_child in only_hot_children:
-        i, size = hash_tree(hot_dir / hot_child, pbar)
-        if hot_child not in cold_index:
-            changes.append(Added(hot_child, size, i))
-        elif i == cold_index[hot_child]:
-            changes.append(Lost(hot_child, 0))
-        else:
-            changes.append(ModifiedLost(hot_child, size, i))
+        if path == PurePath():
+            cold_children.remove(PurePath("index.txt"))
 
-    removed = set(cold_children).difference(hot_children)
-    for cold_child in removed:
-        if cold_child not in cold_index:
-            changes.append(Appeared(cold_child, 0))
-        else:
-            i, size = hash_tree(cold_dir / cold_child, pbar)
-            if i == cold_index[cold_child]:
-                changes.append(Removed(cold_child, 0))
+        hot_only = set(hot_children).difference(cold_children)
+        for hot_child in hot_only:
+            i, size = hash_tree(hot_dir / hot_child, pbar)
+            if hot_child not in cold_index:
+                changes.append(Added(hot_child, size, i))
+            elif i == cold_index[hot_child]:
+                changes.append(Lost(hot_child, 0))
             else:
-                changes.append(RemovedCorrupted(cold_child, 0))
+                changes.append(ModifiedLost(hot_child, size, i))
 
-    removedlost = set(map(lambda p: path/p, cold_index[path].dirs.keys()))\
-        .union(map(lambda p: path/p, cold_index[path].files.keys()))\
-        .difference(hot_children).difference(cold_children)
-    for removedlost_child in removedlost:
-        changes.append(RemovedLost(removedlost_child, 0))
+        cold_only = set(cold_children).difference(hot_children)
+        for cold_child in cold_only:
+            if cold_child not in cold_index:  # pbar only contains cold index files
+                changes.append(Appeared(cold_child, 0))
+            else:
+                i, size = hash_tree(cold_dir / cold_child, pbar)
+                if i == cold_index[cold_child]:
+                    changes.append(Removed(cold_child, 0))
+                else:
+                    changes.append(RemovedCorrupted(cold_child, 0))
 
-    for child in set(hot_children) & set(cold_children):
-        ch_changes = walk_trees(child, cold_index, hot_dir, cold_dir, pbar)
-        changes.extend(ch_changes)
+        index_only = set(map(lambda p: path / p, cold_index[path].dirs.keys())) \
+            .union(map(lambda p: path / p, cold_index[path].files.keys())) \
+            .difference(hot_children).difference(cold_children)
+        for index_child in index_only:
+            changes.append(RemovedLost(index_child, 0))
+            #  lost files account for 0 in pbar
 
-    return changes
+        # Recursive:
+        for child in set(hot_children) & set(cold_children):
+            ch_changes = walk_trees(child, cold_index, hot_dir, cold_dir, pbar)
+            changes.extend(ch_changes)
+
+        return changes
 
 
-def sync(args: argparse.Namespace):
+def sync(args: argparse.Namespace) -> None:
+    """Prompt user for each change towards getting hot dir, cold dir and cold index synced
+
+    :param args: must have attrs hot_dir:str and cold_dir: str
+    """
     hot_dir, cold_dir = Path(args.hot_dir), Path(args.cold_dir)
     assert hot_dir.is_dir(), "hot_dir not found!"
     assert cold_dir.is_dir(), "cold_dir not found!"
 
     index = Index(cold_dir)
-    inv_index = defaultdict(list)
-    for k, v in index.items():
-        inv_index[v].append(k)
+    # inv_index = defaultdict(list)
+    # for k, v in index.items():
+    #     inv_index[v].append(k)
 
     # Set up progress bar
     total = sum([(cold_dir / p).stat().st_size if (cold_dir / p).exists() else 0 for p in index.keys()])
-    for root, _, files in os.walk(args.hot_dir):
-        for file in files:
-            total += os.path.getsize(os.path.join(root, file))
+    for file in hot_dir.rglob("*"):
+        if file.is_file():
+            total += file.stat().st_size
     with tqdm(total=total, unit="B", unit_scale=True) as pbar:
+        # Find all changes required
         changes = walk_trees(PurePath(), index, hot_dir, cold_dir, pbar)
 
         # TODO: calculate reverse indices recursively for added and removed
@@ -137,16 +150,17 @@ def sync(args: argparse.Namespace):
         #     if h in inv_index and set(cold_only) & set(inv_index[h]):
         #         print(set(cold_only) & set(inv_index[h]), "moved to", file)
 
+    # Confirm each change with the user
+    changes.sort(key=attrgetter('name'))
     actions = []
     action_total = 0
-
     for change in changes:
-        # TODO: for context provide if contains moved'es
         if yesno(str(change), default=False):
             actions.append(change)
             action_total += change.size
 
-    with tqdm(total=total, unit="B", unit_scale=True) as pbar:
+    # Carry out all confirmed changes
+    with tqdm(total=action_total, unit="B", unit_scale=True) as pbar:
         for change in actions:
             change.apply(args.hot_dir, args.cold_dir, index)
             pbar.update(change.size)

@@ -89,11 +89,9 @@ class Index(collections.abc.MutableMapping):
             if not self.dirs[PurePath(k.parts[0])]:
                 del self.dirs[PurePath(k.parts[0])]
 
-    def iters(self) -> List[Iterator[PurePath]]:
-        return [list(map(lambda n: d/n, i)) for d in self.dirs.keys() for i in self.dirs[d].iters()] + [iter(self.files)]
-
     def __iter__(self) -> Iterator[str]:
-        return itertools.chain(*self.iters())
+        return itertools.chain(*[list(map(lambda n: d[0]/n, iter(d[1]))) for d in self.dirs.items()],
+                               iter(self.files))
 
     def __repr__(self) -> str:
         return f"Index(files: {repr(self.files)}, dirs: {repr(self.dirs)})"
