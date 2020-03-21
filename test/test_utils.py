@@ -1,7 +1,8 @@
 import tempfile
+import unittest.mock as mock
 from io import StringIO
 from unittest import TestCase
-import unittest.mock as mock
+
 from utils import *
 
 
@@ -180,3 +181,12 @@ class TestYesNo(TestCase):
 
         self.assert_yesno('\n', True, True)
         self.assert_yesno('\n', False, False)
+
+
+class TestWalk(TestCase):
+    def test_walk_ignorable(self):
+        self.assertEqual(sorted([
+            Path('ignorable/b.txt'),
+            Path('ignorable/c/e.txt'),
+            Path('ignorable/f/g.txt')
+        ]), sorted(list(walk(Path('ignorable'), []))))

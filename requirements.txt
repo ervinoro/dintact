@@ -1,2 +1,3 @@
 xxhash
 tqdm
+pathspec>0.7

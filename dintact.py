@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from operator import attrgetter
-from typing import List, Set
+from typing import Set
 
 from changes import *
 from utils import *
@@ -28,14 +28,15 @@ def check(args: argparse.Namespace) -> None:
             if h != hash_file(cold_dir / p, pbar):
                 print(f"Verification failed: '{p}'.", file=sys.stderr)
         # Additionally check that index is complete
-        for file in cold_dir.rglob("*"):
-            if file.is_file():
-                relpath: PurePath = file.relative_to(cold_dir)
-                if relpath not in index and relpath != PurePath("index.txt"):
-                    print(f"File missing from index: '{relpath}'.", file=sys.stderr)
+        for file in walk(cold_dir, []):
+            relpath: PurePath = file.relative_to(cold_dir)
+            if relpath not in index and relpath != PurePath("index.txt"):
+                print(f"File missing from index: '{relpath}'.", file=sys.stderr)
 
 
-def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path, pbar: tqdm) -> List[Change]:
+def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
+               hot_rules: List[PathAwareGitWildMatchPattern], cold_rules: List[PathAwareGitWildMatchPattern],
+               pbar: tqdm) -> List[Change]:
     """Compare hot (sub)dir, cold (sub)dir, and cold index. Returns a list of changes required to get them synced.
 
     It only returns outermost directories/files for each change (except content changes, which it lists all)
@@ -44,6 +45,8 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
     :param cold_index: the original unchanged cold index
     :param hot_dir: hot base path
     :param cold_dir: cold base path
+    :param hot_rules: files to ignore in hot dir
+    :param cold_rules: files to ignore in cold dir
     :param pbar: will be updated as files get hashed
     :return: All changes between cold and hot directories under current sub path
     """
@@ -74,17 +77,24 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
     else:
         changes = []
 
+        if (hot_dir / path / '.gitignore').exists():
+            with open(hot_dir / path / '.gitignore', 'r') as f:
+                hot_rules += map(lambda r: PathAwareGitWildMatchPattern(r, hot_dir / path), f.read().splitlines())
+        if (cold_dir / path / '.gitignore').exists():
+            with open(cold_dir / path / '.gitignore', 'r') as f:
+                cold_rules += map(lambda r: PathAwareGitWildMatchPattern(r, cold_dir / path), f.read().splitlines())
+        if path == PurePath():
+            hot_rules += [PathAwareGitWildMatchPattern('index.txt', hot_dir / path)]
+            cold_rules += [PathAwareGitWildMatchPattern('index.txt', cold_dir / path)]
+
         hot_children: Set[PurePath] = set(map(lambda abs_path: abs_path.relative_to(hot_dir),
-                                              filter(lambda p: p.is_file() or any(p.iterdir()),
+                                              filter(lambda p: is_relevant(p, hot_rules),
                                                      (hot_dir / path).iterdir())))
         cold_children: Set[PurePath] = set(map(lambda abs_path: abs_path.relative_to(cold_dir),
-                                               filter(lambda p: p.is_file() or any(p.iterdir()),
+                                               filter(lambda p: is_relevant(p, cold_rules),
                                                       (cold_dir / path).iterdir())))
         index_children: Set[PurePath] = set(map(lambda p: path / p,
                                                 cold_index[path].iterdir() if path in cold_index else []))
-
-        if path == PurePath():
-            cold_children.remove(PurePath("index.txt"))
 
         # H C I: 1 0 X
         for hot_child in hot_children.difference(cold_children):
@@ -114,7 +124,7 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
 
         # Recursive: (H C I: 1 1 X)
         for child in hot_children & cold_children:
-            ch_changes = walk_trees(child, cold_index, hot_dir, cold_dir, pbar)
+            ch_changes = walk_trees(child, cold_index, hot_dir, cold_dir, hot_rules[:], cold_rules[:], pbar)
             changes.extend(ch_changes)
 
         return changes
@@ -136,12 +146,11 @@ def sync(args: argparse.Namespace) -> None:
 
     # Set up progress bar
     total = 0
-    for file in itertools.chain(hot_dir.rglob("*"), cold_dir.rglob("*")):
-        if file.is_file():
-            total += file.stat().st_size
+    for file in itertools.chain(walk(hot_dir, []), walk(cold_dir, [])):
+        total += file.stat().st_size
     with tqdm(total=total, unit="B", unit_scale=True) as pbar:
         # Find all changes required
-        changes = walk_trees(PurePath(), index, hot_dir, cold_dir, pbar)
+        changes = walk_trees(PurePath(), index, hot_dir, cold_dir, [], [], pbar)
 
         # TODO: calculate reverse indices recursively for added and removed
         # TODO: find all moved. Can be also moved into added or out from removed

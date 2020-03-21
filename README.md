@@ -20,3 +20,7 @@ The entire index must fit in memory, but files are read chunk-by-chunk.
 --- or ---
 
 `dintact sync <hot_directory> <cold_directory>`
+
+### Ignored files
+
+dintact respects any `.gitignore` files it finds, and does **not** back up files matched by these.

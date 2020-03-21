@@ -9,7 +9,7 @@ from dintact import walk_trees
 class TestWalkTrees(unittest.TestCase):
     def test_bundled_folder(self):
         pbar = mock.MagicMock()
-        changes = walk_trees(PurePath(), Index(Path('cold')), Path('hot'), Path('cold'), pbar)
+        changes = walk_trees(PurePath(), Index(Path('cold')), Path('hot'), Path('cold'), [], [], pbar)
         self.assertEqual(sorted([
             ModifiedCopied(PurePath('ModifiedCopied.txt'), 0),
             Modified(PurePath('Modified.txt'), 0),

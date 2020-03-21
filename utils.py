@@ -2,15 +2,53 @@ import itertools
 import os
 import shutil
 import sys
-from pathlib import Path
-from typing import Generator, Tuple, Union
+from pathlib import Path, PurePosixPath
+from typing import Generator, Tuple, Union, List
 
-from tqdm import tqdm
+import pathspec
 import xxhash
+from tqdm import tqdm
 
 from index import Index
 
+# noinspection PyShadowingBuiltins
+print = tqdm.write
+
 CHUNK_SIZE: int = 4096
+
+
+class PathAwareGitWildMatchPattern(pathspec.patterns.GitWildMatchPattern):
+    def __init__(self, pattern, root: Path, include=None):
+        super().__init__(pattern, include)
+        self.root = root
+
+
+def is_relevant(p: Path, rules: List[PathAwareGitWildMatchPattern]) -> bool:
+    if not (p.is_file() or any(p.iterdir())):
+        return False
+    ignored = False
+    for rule in rules:
+        if rule.include is not None:
+            relpath = str(PurePosixPath(p.relative_to(rule.root)))
+            if relpath in rule.match((relpath,)):
+                ignored = rule.include
+    return not ignored
+
+
+def walk(p: Path, rules: List[PathAwareGitWildMatchPattern]) -> Generator[Path, None, None]:
+    if is_relevant(p, rules):
+        if p.is_file():
+            yield p
+        elif p.is_dir():
+            if (p / '.gitignore').exists():
+                with open(p / '.gitignore', 'r') as f:
+                    for line in f:
+                        rules.append(PathAwareGitWildMatchPattern(line, p))
+            for c in p.iterdir():
+                for cc in walk(c, rules[:]):
+                    yield cc
+        else:  # pragma: no cover
+            raise Exception(f"Unknown thing {p}")
 
 
 def slurp(filename: Path, pbar: tqdm, chunk_size: int = CHUNK_SIZE) -> Generator[bytes, None, None]:
