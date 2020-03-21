@@ -1,3 +1,3 @@
-xxhash
-tqdm
+xxhash>=1.4, <2
+tqdm>=4.43, <5
 pathspec>0.7

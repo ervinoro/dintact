@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from changes import *
 
+
 class TestCommon(TestCase):
     def test_str(self):
         change = Change(PurePath('asdf_name'), 0)
@@ -37,6 +38,7 @@ class TestCommon(TestCase):
         self.assertNotEqual(a, 10)
         self.assertNotEqual(hash(a), hash(10))
 
+
 @patch('changes.rm')
 @patch('changes.cp')
 class TestApplies(TestCase):
@@ -64,7 +66,7 @@ class TestApplies(TestCase):
         change = Added(n, 0, 'x')
         i = Index()
         change.apply(h, c, i)
-        cp.assert_called_once_with(h/n, c/n)
+        cp.assert_called_once_with(h / n, c / n)
         rm.assert_not_called()
         self.assertEqual('x', i[n])
 
@@ -74,7 +76,7 @@ class TestApplies(TestCase):
         i = Index()
         i[n] = 'y'
         change.apply(h, c, i)
-        cp.assert_called_once_with(h/n, c/n)
+        cp.assert_called_once_with(h / n, c / n)
         rm.assert_not_called()
         self.assertEqual('x', i[n])
 
@@ -83,7 +85,7 @@ class TestApplies(TestCase):
         change = Lost(n, 0, 'x')
         i = Index()
         change.apply(h, c, i)
-        cp.assert_called_once_with(h/n, c/n)
+        cp.assert_called_once_with(h / n, c / n)
         rm.assert_not_called()
         self.assertNotIn(n, i)
 
@@ -94,7 +96,7 @@ class TestApplies(TestCase):
         i[n] = 'x'
         change.apply(h, c, i)
         cp.assert_not_called()
-        rm.assert_called_once_with(c/n)
+        rm.assert_called_once_with(c / n)
         self.assertNotIn(n, i)
 
     def test_removed_corrupted(self, cp, rm):  # HCI: 0 1 2, action: remove it from cold backup
@@ -104,7 +106,7 @@ class TestApplies(TestCase):
         i[n] = 'y'
         change.apply(h, c, i)
         cp.assert_not_called()
-        rm.assert_called_once_with(c/n)
+        rm.assert_called_once_with(c / n)
         self.assertNotIn(n, i)
 
     def test_modified(self, cp, rm):  # HCI: 2 1 1, action: copy it to cold backup
@@ -113,8 +115,8 @@ class TestApplies(TestCase):
         i = Index()
         i[n] = 'y'
         change.apply(h, c, i)
-        cp.assert_called_once_with(h/n, c/n)
-        rm.assert_called_once_with(c/n)
+        cp.assert_called_once_with(h / n, c / n)
+        rm.assert_called_once_with(c / n)
         self.assertEqual('x', i[n])
 
     def test_corrupted(self, cp, rm):  # HCI: 1 2 1, action: copy it to cold backup
@@ -122,8 +124,8 @@ class TestApplies(TestCase):
         change = Corrupted(n, 0, 'x')
         i = Index()
         change.apply(h, c, i)
-        cp.assert_called_once_with(h/n, c/n)
-        rm.assert_called_once_with(c/n)
+        cp.assert_called_once_with(h / n, c / n)
+        rm.assert_called_once_with(c / n)
         self.assertNotIn(n, i)
 
     def test_modified_corrupted(self, cp, rm):  # HCI: 1 2 3, action: copy it to cold backup
@@ -132,8 +134,8 @@ class TestApplies(TestCase):
         i = Index()
         i[n] = 'y'
         change.apply(h, c, i)
-        cp.assert_called_once_with(h/n, c/n)
-        rm.assert_called_once_with(c/n)
+        cp.assert_called_once_with(h / n, c / n)
+        rm.assert_called_once_with(c / n)
         self.assertEqual('x', i[n])
 
     def test_added_appeared(self, cp, rm):  # HCI: 1 2 0, action: overwrite from hot to cold
@@ -141,8 +143,8 @@ class TestApplies(TestCase):
         change = AddedAppeared(n, 0, 'x')
         i = Index()
         change.apply(h, c, i)
-        cp.assert_called_once_with(h/n, c/n)
-        rm.assert_called_once_with(c/n)
+        cp.assert_called_once_with(h / n, c / n)
+        rm.assert_called_once_with(c / n)
         self.assertEqual('x', i[n])
 
     def test_appeared(self, cp, rm):  # HCI: 0 1 0, action: delete if from cold backup
@@ -151,7 +153,7 @@ class TestApplies(TestCase):
         i = Index()
         change.apply(h, c, i)
         cp.assert_not_called()
-        rm.assert_called_once_with(c/n)
+        rm.assert_called_once_with(c / n)
         self.assertNotIn(n, i)
 
     def test_removed_lost(self, cp, rm):  # HCI: 0 0 1, action: remove it from index

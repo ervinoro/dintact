@@ -66,6 +66,7 @@ class Change:
     def __hash__(self):
         return hash(self.__id_members())
 
+
 class AddedCopied(Change):
     has_been = "added and manually copied (without updating the index)"
     action = "add it to cold index"

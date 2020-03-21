@@ -6,6 +6,8 @@ from typing import Union, Iterator, Dict
 
 class Index:
     pass  # PyCharm bug about using types internally
+
+
 # noinspection PyRedeclaration
 class Index(collections.abc.MutableMapping):
     """Dict-like structure mapping files to checksums
@@ -14,6 +16,7 @@ class Index(collections.abc.MutableMapping):
 
     :param cold_dir: directory containing index.txt, or None (in which case empty in-memory index is created)
     """
+
     def __init__(self, cold_dir: Union[Path, None] = None) -> None:
         super().__init__()
         self.dirs: Dict[PurePath, Index] = {}
@@ -90,7 +93,7 @@ class Index(collections.abc.MutableMapping):
                 del self.dirs[PurePath(k.parts[0])]
 
     def __iter__(self) -> Iterator[PurePath]:
-        return itertools.chain(*[list(map(lambda n: d[0]/n, iter(d[1]))) for d in self.dirs.items()],
+        return itertools.chain(*[list(map(lambda n: d[0] / n, iter(d[1]))) for d in self.dirs.items()],
                                iter(self.files))
 
     def iterdir(self) -> Iterator[PurePath]:
