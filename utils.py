@@ -64,7 +64,7 @@ def slurp(filename: Path, pbar: tqdm, chunk_size: int = CHUNK_SIZE) -> Generator
 
 def hash_file(path: Path, pbar: tqdm) -> str:
     """Returns checksum of file content"""
-    x = xxhash.xxh64()
+    x = xxhash.xxh3_128()
     for chunk in slurp(path, pbar):
         x.update(chunk)
     return x.hexdigest()
@@ -75,8 +75,8 @@ def hash_compare_files(a_path: Path, b_path: Path, pbar: tqdm) -> Tuple[str, str
 
     Can return 'not equal' even when hashes collide.
     """
-    a_x = xxhash.xxh64()
-    b_x = xxhash.xxh64()
+    a_x = xxhash.xxh3_128()
+    b_x = xxhash.xxh3_128()
     eq = True
     for chunk in itertools.zip_longest(slurp(a_path, pbar), slurp(b_path, pbar)):
         a_x.update(chunk[0] or b'')

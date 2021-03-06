@@ -1,5 +1,7 @@
 import collections
+import datetime
 import itertools
+import json
 from pathlib import Path, PurePath
 from typing import Union, Iterator, Dict
 
@@ -15,9 +17,11 @@ class Index(collections.abc.MutableMapping):
     Can either be used in-memory or as a file interface.
 
     :param cold_dir: directory containing index.txt, or None (in which case empty in-memory index is created)
+    :param coding: file encoding to use when reading index.txt
     """
+    meta: Union[dict, None] = None
 
-    def __init__(self, cold_dir: Union[Path, None] = None) -> None:
+    def __init__(self, cold_dir: Union[Path, None] = None, coding: str = 'utf8') -> None:
         super().__init__()
         self.dirs: Dict[PurePath, Index] = {}
         self.files: Dict[PurePath, str] = {}
@@ -25,20 +29,37 @@ class Index(collections.abc.MutableMapping):
             self.path = cold_dir / "index.txt"
             if not self.path.exists():
                 self.path.touch(exist_ok=False)
-            with self.path.open('r', encoding='utf8') as file:
+                self.meta = {
+                    'version': 1,
+                    'algorithm': 'XXH128',
+                    'coding': 'utf8',
+                }
+                return
+            with self.path.open('r', encoding=coding) as file:
+                header_line = file.readline()
+                if header_line.startswith('# dintact index '):
+                    meta = json.loads(header_line[16:])
+                    if meta['version'] != 1 or meta['algorithm'] != 'XXH128' or meta['coding'] != coding:
+                        raise Exception("Can't load this index file!")
+                    self.meta = meta
+                if self.meta is None:
+                    raise Exception("Index file header missing!")
+
                 for line in file:
-                    if not line.strip():
+                    if not line.strip() or line[0] == "#":
                         continue
-                    checksum, name = line.strip().split(" ", 1)
+                    checksum, name = line.strip().split("  ", 1)
                     self[PurePath(name)] = checksum
 
     def store(self):
         """Store to cold backup index file"""
-        with self.path.open('w', encoding='utf8') as file:
+        self.meta['created_at'] = datetime.datetime.now().replace(microsecond=0).astimezone().isoformat()
+        with self.path.open('w', encoding=self.meta['coding']) as file:
+            file.write(f"# dintact index {json.dumps(self.meta)}\n")
             for name in self.keys():
                 v = self[name]
                 assert isinstance(v, str), f"Internal Error ({v} returned by iter)"
-                file.write(f"{v} {name.as_posix()}\n")
+                file.write(f"{v}  {name.as_posix()}\n")
 
     def __len__(self) -> int:
         return sum([len(d) for d in self.dirs.values()]) + len(self.files)

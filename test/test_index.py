@@ -1,3 +1,4 @@
+import json
 from pathlib import PurePath, Path
 from unittest import TestCase, mock
 
@@ -168,30 +169,33 @@ class Test(TestCase):
         self.assertRaises(KeyError, lambda: index[PurePath('a')])
         self.assertRaises(TypeError, lambda: index.update([(PurePath('a'), 1)]))
 
-    def assert_index_file(self, file: str, index: Index):
-        self._assert_index_file(file, index, exists=True)
-        self._assert_index_file(file, index, exists=False)
+    def test_non_existing_index_created(self):
+        p: Path = Path('foo_filename')
+        with mock.patch.object(Path, 'exists') as mock_exists:
+            mock_exists.return_value = False
+            with mock.patch.object(Path, 'touch') as mock_touch:
+                i = Index(p)
+                self.assertEqual(Index(), i)
+                mock_touch.assert_called_once()
 
-    def _assert_index_file(self, file: str, index: Index, exists: bool = True):
+    def assert_index_file(self, file: str, index: Index):
+        read_data = '# dintact index {"version": 1, "algorithm": "XXH128", "coding": "utf8"}\n' + file
         p: Path = Path('foo_filename')
         i: Index
-        with mock.patch.object(Path, 'touch') as mock_touch:
-            with mock.patch.object(Path, 'exists') as mock_exists:
-                mock_exists.return_value = exists
-                with mock.patch('io.open', mock.mock_open(read_data=file)) as mock_open:
-                    i = Index(p)
-                    self.assertEqual(index, i)
-                    mock_open.assert_called_once()
-                    self.assertEqual(p / "index.txt", mock_open.call_args[0][0])
-            if not exists:
-                mock_touch.assert_called_once()
+        with mock.patch.object(Path, 'exists') as mock_exists:
+            mock_exists.return_value = True
+            with mock.patch('io.open', mock.mock_open(read_data=read_data)) as mock_open:
+                i = Index(p)
+                self.assertEqual(index, i)
+                mock_open.assert_called_once()
+                self.assertEqual(p / "index.txt", mock_open.call_args[0][0])
 
         with mock.patch('io.open', mock.mock_open()) as mock_open:
             i.store()
             mock_open.assert_called_once()
             self.assertEqual(p / "index.txt", mock_open.call_args[0][0])
             self.assertEqual(set(file.split('\n')),
-                             set(''.join(c.args[0] for c in mock_open().write.mock_calls).split('\n')))
+                             set(''.join(c.args[0] for c in mock_open().write.mock_calls if c.args[0][0] != '#').split('\n')))
 
     def test_empty_file(self):
         self.assert_index_file("", Index())
@@ -199,16 +203,61 @@ class Test(TestCase):
     def test_single_file(self):
         i = Index()
         i[PurePath('a')] = '1'
-        self.assert_index_file("1 a\n", i)
+        self.assert_index_file("1  a\n", i)
 
     def test_subdir_file(self):
         i = Index()
         i[PurePath('a')] = '1'
         i[PurePath('c/d')] = '2'
-        self.assert_index_file("1 a\n2 c/d\n", i)
+        self.assert_index_file("1  a\n2  c/d\n", i)
 
     def test_multiple_folders(self):
         i = Index()
         i[PurePath('a/b')] = '1'
         i[PurePath('c/d')] = '2'
-        self.assert_index_file("1 a/b\n2 c/d\n", i)
+        self.assert_index_file("1  a/b\n2  c/d\n", i)
+
+    def assert_header_raises(self, header: str):
+        p: Path = Path('foo_filename')
+        with mock.patch.object(Path, 'exists') as mock_exists:
+            mock_exists.return_value = True
+            with mock.patch('io.open', mock.mock_open(read_data=header)) as mock_open:
+                self.assertRaises(Exception, lambda: Index(p))
+
+    def test_incompatible_version_raises(self):
+        self.assert_header_raises('# dintact index {"version": 2, "algorithm": "XXH128", "coding": "utf8"}')
+
+    def test_incompatible_algorithm_raises(self):
+        self.assert_header_raises('# dintact index {"version": 1, "algorithm": "XXH64", "coding": "utf8"}')
+
+    def test_incompatible_encoding_raises(self):
+        self.assert_header_raises('# dintact index {"version": 1, "algorithm": "XXH128", "coding": "ascii"}')
+
+    def test_missing_header_raises(self):
+        self.assert_header_raises('')
+
+    def test_writes_header(self):
+        p: Path = Path('foo_filename')
+        i: Index
+        with mock.patch.object(Path, 'touch') as mock_touch:
+            with mock.patch.object(Path, 'exists') as mock_exists:
+                mock_exists.return_value = False
+                with mock.patch('io.open', mock.mock_open(read_data='')) as mock_open:
+                    i = Index(p)
+            mock_touch.assert_called_once()
+        i.meta = {
+            'version': 42,
+            'algorithm': 'SHA256',
+            'coding': 'cp775',
+        }
+        with mock.patch('io.open', mock.mock_open()) as mock_open:
+            i.store()
+            mock_open.assert_called_once()
+            self.assertEqual(p / "index.txt", mock_open.call_args[0][0])
+            self.assertEqual('cp775', mock_open.call_args[0][3])
+            output = mock_open().write.mock_calls[0].args[0]
+            self.assertEqual('# dintact index ', output[:16])
+            self.assertLessEqual(
+                {"version": 42, "algorithm": "SHA256", "coding": "cp775"}.items(),
+                json.loads(output[16:]).items()
+            )

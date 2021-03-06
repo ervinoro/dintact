@@ -62,11 +62,11 @@ class TestHashFile(TestCase):
     # Can return 'not equal' even when hashes collide.
     # """
     xxhash_examples = [
-        {"data": b'', "hexdigest": 'ef46db3751d8e999'},
-        {"data": b'Test', "hexdigest": 'da83efc38a8922b4'},
-        {"data": b'A bit longer test case...', "hexdigest": 'ddd42c49611733ca'},
-        {"data": b'x' * 4097, "hexdigest": 'a4233fac2072729d'},
-        {"data": b'\x00' * 8, "hexdigest": '34c96acdcadb1bbb'}
+        {"data": b'', "hexdigest": '99aa06d3014798d86001c324468d497f'},
+        {"data": b'Test', "hexdigest": '391c8305c491690bc2da658a2d6348d5'},
+        {"data": b'A bit longer test case...', "hexdigest": '5a4d96cb56d55d8d76aa74750d7e72a5'},
+        {"data": b'x' * 4097, "hexdigest": 'df9a7a18b1942ff8531b09228bdbf2ef'},
+        {"data": b'\x00' * 8, "hexdigest": '2c0a8a99dc147d5445c3b49d035665b2'}
     ]
 
     def test_hash_file(self):
