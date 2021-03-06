@@ -1,3 +1,5 @@
+import os
+import sys
 import tempfile
 import unittest.mock as mock
 from io import StringIO
@@ -185,6 +187,7 @@ class TestYesNo(TestCase):
 
 class TestWalk(TestCase):
     def test_walk_ignorable(self):
+        os.chdir(sys.path[0])
         self.assertEqual(sorted([
             Path('ignorable/b.txt'),
             Path('ignorable/c/e.txt'),

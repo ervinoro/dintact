@@ -109,9 +109,11 @@ class Test(TestCase):
         i[PurePath('b')] = 'x'
         i[PurePath('c/e')] = 'y'
 
-        self.assertEqual("Index(files: {PureWindowsPath('b'): 'x'}, "
-                         "dirs: {PureWindowsPath('c'): Index(files: {PureWindowsPath('e'): 'y'}, dirs: {})})",
-                         repr(i))
+        self.assertRegex(
+            repr(i),
+            r"Index\(files: {Pure(Windows|Posix)Path\('b'\): 'x'}, "
+            r"dirs: {Pure(Windows|Posix)Path\('c'\): Index\(files: {Pure(Windows|Posix)Path\('e'\): 'y'}, dirs: {}\)}\)"
+        )
 
     def test_eq(self):
         i = Index()

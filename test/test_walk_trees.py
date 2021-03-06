@@ -1,3 +1,5 @@
+import os
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -8,6 +10,7 @@ from dintact import walk_trees
 
 class TestWalkTrees(unittest.TestCase):
     def test_bundled_folder(self):
+        os.chdir(sys.path[0])
         pbar = mock.MagicMock()
         changes = walk_trees(PurePath(), Index(Path('cold')), Path('hot'), Path('cold'), [], [], pbar)
         self.assertEqual(sorted([
