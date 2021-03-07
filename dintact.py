@@ -1,11 +1,21 @@
 #!/usr/bin/env python3
 import argparse
+import itertools
+import os
+import sys
 from operator import attrgetter
-from typing import Set
+from pathlib import Path, PurePath
+from typing import List, Set
 
-from changes import *
-from utils import *
-from utils import hash_tree
+from tqdm import tqdm
+
+from changes import (Added, AddedAppeared, AddedCopied, Appeared, Change,
+                     Corrupted, Lost, Modified, ModifiedCopied,
+                     ModifiedCorrupted, ModifiedLost, Removed,
+                     RemovedCorrupted, RemovedLost)
+from index import Index
+from utils import (PathAwareGitWildMatchPattern, hash_compare_files, hash_file,
+                   hash_tree, is_relevant, walk, yesno)
 
 # noinspection PyShadowingBuiltins
 print = tqdm.write
@@ -50,6 +60,7 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
     :param pbar: will be updated as files get hashed
     :return: All changes between cold and hot directories under current sub path
     """
+    sub_index = cold_index[path] if path in cold_index else None
 
     if (hot_dir / path).is_file() and (cold_dir / path).is_file():
         hot_hash, cold_hash, eq = hash_compare_files(hot_dir / path, cold_dir / path, pbar)
@@ -71,11 +82,11 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
             else:
                 return [Modified(path, (hot_dir / path).stat().st_size, hot_hash)]
 
-    elif not (hot_dir / path).is_dir() or not (cold_dir / path).is_dir():
+    elif not (hot_dir / path).is_dir() or not (cold_dir / path).is_dir() or isinstance(sub_index, str):
         raise NotImplementedError("File/Folder name collision")
 
     else:
-        changes = []
+        changes: List[Change] = []
 
         if (hot_dir / path / '.gitignore').exists():
             with open(hot_dir / path / '.gitignore', 'r') as f:
@@ -94,7 +105,7 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
                                                filter(lambda p: is_relevant(p, cold_rules),
                                                       (cold_dir / path).iterdir())))
         index_children: Set[PurePath] = set(map(lambda p: path / p,
-                                                cold_index[path].iterdir() if path in cold_index else []))
+                                                sub_index.iterdir() if sub_index is not None else []))
 
         # H C I: 1 0 X
         for hot_child in hot_children.difference(cold_children):

@@ -1,8 +1,12 @@
-from pathlib import Path
+from pathlib import Path, PurePath
 from unittest import TestCase
 from unittest.mock import patch
 
-from changes import *
+from changes import (Added, AddedAppeared, AddedCopied, Appeared, Change,
+                     Corrupted, Lost, Modified, ModifiedCopied,
+                     ModifiedCorrupted, ModifiedLost, Removed,
+                     RemovedCorrupted, RemovedLost)
+from index import Index
 
 
 class TestCommon(TestCase):
@@ -30,8 +34,8 @@ class TestCommon(TestCase):
         self.assertNotEqual(a, b)
         self.assertNotEqual(hash(a), hash(b))
 
-        a = AddedCopied(PurePath('asdf_name'), 0)
-        b = ModifiedCopied(PurePath('asdf_name'), 0)
+        a = Removed(PurePath('asdf_name'), 0)
+        b = RemovedCorrupted(PurePath('asdf_name'), 0)
         self.assertNotEqual(a, b)
         self.assertNotEqual(hash(a), hash(b))
 

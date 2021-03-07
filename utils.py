@@ -3,7 +3,7 @@ import os
 import shutil
 import sys
 from pathlib import Path, PurePosixPath
-from typing import Generator, Tuple, Union, List
+from typing import Generator, List, Tuple, Union
 
 import pathspec
 import xxhash
@@ -88,19 +88,18 @@ def hash_compare_files(a_path: Path, b_path: Path, pbar: tqdm) -> Tuple[str, str
 
 def hash_tree(path: Path, pbar: tqdm) -> Tuple[Union[Index, str], int]:
     """Calculate index of a path recursively"""
-    i = Index()
-    size = 0
     if path.is_dir():
+        i = Index()
+        size = 0
         for f in path.rglob("*"):
             if f.is_file():
                 i[f.relative_to(path)] = hash_file(f, pbar)
                 size += f.stat().st_size
+        return i, size
     elif path.is_file():
-        i = hash_file(path, pbar)
-        size += path.stat().st_size
+        return hash_file(path, pbar), path.stat().st_size
     else:
         raise NotImplementedError(f"Unknown {path}")
-    return i, size
 
 
 def cp(source: os.PathLike, target: os.PathLike):

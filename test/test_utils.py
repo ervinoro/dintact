@@ -3,9 +3,11 @@ import sys
 import tempfile
 import unittest.mock as mock
 from io import StringIO
+from pathlib import Path
 from unittest import TestCase
 
-from utils import *
+from utils import (cp, hash_compare_files, hash_file, hash_tree, rm, slurp,
+                   walk, yesno)
 
 
 class TestSlurp(TestCase):

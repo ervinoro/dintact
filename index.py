@@ -1,17 +1,14 @@
-import collections
+from __future__ import annotations
+
 import datetime
 import itertools
 import json
+from collections.abc import MutableMapping
 from pathlib import Path, PurePath
-from typing import Union, Iterator, Dict
+from typing import Dict, Iterator, Union
 
 
-class Index:
-    pass  # PyCharm bug about using types internally
-
-
-# noinspection PyRedeclaration
-class Index(collections.abc.MutableMapping):
+class Index(MutableMapping):
     """Dict-like structure mapping files to checksums
 
     Can either be used in-memory or as a file interface.
@@ -63,6 +60,19 @@ class Index(collections.abc.MutableMapping):
 
     def __len__(self) -> int:
         return sum([len(d) for d in self.dirs.values()]) + len(self.files)
+
+    def __contains__(self, k: object) -> bool:
+        if isinstance(k, PurePath):
+            if len(k.parts) == 0:
+                return True
+            elif len(k.parts) == 1:
+                return k in self.files or k in self.dirs
+            else:
+                head = PurePath(k.parts[0])
+                tail = PurePath(*k.parts[1:])
+                return head in self.dirs and tail in self.dirs[head]
+        else:
+            return False
 
     def __getitem__(self, k: PurePath) -> Union[str, Index]:
         assert not k.is_absolute(), "Index keys must be relative paths"

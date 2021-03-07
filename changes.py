@@ -67,7 +67,14 @@ class Change:
         return hash(self.__id_members())
 
 
-class AddedCopied(Change):
+class ChangeWithNewChecksums(Change):
+    index: Union[Index, str]
+
+    def __init__(self, name: PurePath, size: int, index: Union[Index, str]):
+        super().__init__(name, size, index)
+
+
+class AddedCopied(ChangeWithNewChecksums):
     has_been = "added and manually copied (without updating the index)"
     action = "add it to cold index"
 
@@ -79,7 +86,7 @@ class ModifiedCopied(AddedCopied):
     has_been = "modified and manually copied (without updating the index)"
 
 
-class Added(Change):
+class Added(ChangeWithNewChecksums):
     has_been = "added"
     action = "copy it to cold backup"
 
@@ -92,8 +99,9 @@ class ModifiedLost(Added):
     has_been = "modified in hot and lost from cold backup"
 
 
-class Lost(Added):
+class Lost(Change):
     has_been = "lost from cold backup"
+    action = "copy it to cold backup"
 
     def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
         cp(hot_dir / self.name, cold_dir / self.name)
@@ -112,7 +120,7 @@ class RemovedCorrupted(Removed):
     has_been = "removed (from hot storage) and corrupted (in cold backup)"
 
 
-class Modified(Change):
+class Modified(ChangeWithNewChecksums):
     has_been = "modified"
     action = "copy it to cold backup"
 
@@ -122,8 +130,9 @@ class Modified(Change):
         index[self.name] = self.index
 
 
-class Corrupted(Modified):
+class Corrupted(Change):
     has_been = "corrupted (in cold backup)"
+    action = "overwrite from hot to cold"
 
     def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
         rm(cold_dir / self.name)

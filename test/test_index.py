@@ -1,5 +1,5 @@
 import json
-from pathlib import PurePath, Path
+from pathlib import Path, PurePath
 from unittest import TestCase, mock
 
 from index import Index
@@ -64,6 +64,9 @@ class Test(TestCase):
         del index[PurePath('a')]
         self.assertEqual(0, len(index))
         self.assertFalse(index.keys())
+
+    def test_doesnt_contain_nonsense(self):
+        self.assertNotIn(42, Index())
 
     def test_subindex(self):
         index = Index()
@@ -194,8 +197,8 @@ class Test(TestCase):
             i.store()
             mock_open.assert_called_once()
             self.assertEqual(p / "index.txt", mock_open.call_args[0][0])
-            self.assertEqual(set(file.split('\n')),
-                             set(''.join(c.args[0] for c in mock_open().write.mock_calls if c.args[0][0] != '#').split('\n')))
+            outfile = ''.join(c.args[0] for c in mock_open().write.mock_calls if c.args[0][0] != '#')
+            self.assertEqual(set(file.split('\n')), set(outfile.split('\n')))
 
     def test_empty_file(self):
         self.assert_index_file("", Index())
@@ -221,7 +224,7 @@ class Test(TestCase):
         p: Path = Path('foo_filename')
         with mock.patch.object(Path, 'exists') as mock_exists:
             mock_exists.return_value = True
-            with mock.patch('io.open', mock.mock_open(read_data=header)) as mock_open:
+            with mock.patch('io.open', mock.mock_open(read_data=header)):
                 self.assertRaises(Exception, lambda: Index(p))
 
     def test_incompatible_version_raises(self):

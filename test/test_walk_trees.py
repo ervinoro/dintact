@@ -1,11 +1,14 @@
 import os
 import sys
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePath
 from unittest import mock
 
-from changes import *
+from changes import (Added, AddedAppeared, AddedCopied, Appeared, Corrupted,
+                     Lost, Modified, ModifiedCopied, ModifiedCorrupted,
+                     ModifiedLost, Removed, RemovedCorrupted, RemovedLost)
 from dintact import walk_trees
+from index import Index
 
 
 class TestWalkTrees(unittest.TestCase):
@@ -14,22 +17,22 @@ class TestWalkTrees(unittest.TestCase):
         pbar = mock.MagicMock()
         changes = walk_trees(PurePath(), Index(Path('cold')), Path('hot'), Path('cold'), [], [], pbar)
         self.assertEqual(sorted([
-            ModifiedCopied(PurePath('ModifiedCopied.txt'), 0),
-            Modified(PurePath('Modified.txt'), 0),
+            ModifiedCopied(PurePath('ModifiedCopied.txt'), 0, Index()),
+            Modified(PurePath('Modified.txt'), 0, Index()),
             Corrupted(PurePath('Corrupted.txt'), 0),
-            ModifiedCorrupted(PurePath('ModifiedCorrupted.txt'), 0),
-            AddedCopied(PurePath('AddedCopied.txt'), 0),
-            AddedAppeared(PurePath('AddedAppeared.txt'), 0),
+            ModifiedCorrupted(PurePath('ModifiedCorrupted.txt'), 0, Index()),
+            AddedCopied(PurePath('AddedCopied.txt'), 0, Index()),
+            AddedAppeared(PurePath('AddedAppeared.txt'), 0, Index()),
             Lost(PurePath('Lost.txt'), 0),
-            ModifiedLost(PurePath('ModifiedLost.txt'), 0),
-            Added(PurePath('Added.txt'), 0),
+            ModifiedLost(PurePath('ModifiedLost.txt'), 0, Index()),
+            Added(PurePath('Added.txt'), 0, Index()),
             Removed(PurePath('Removed.txt'), 0),
             RemovedCorrupted(PurePath('RemovedCorrupted.txt'), 0),
             Appeared(PurePath('Appeared.txt'), 0),
             RemovedLost(PurePath('RemovedLost.txt'), 0),
-            ModifiedLost(PurePath('ModifiedLost'), 0),
+            ModifiedLost(PurePath('ModifiedLost'), 0, Index()),
             Lost(PurePath('Lost'), 0),
-            Added(PurePath('Added'), 0),
+            Added(PurePath('Added'), 0, Index()),
             RemovedCorrupted(PurePath('RemovedCorrupted'), 0),
             Removed(PurePath('Removed'), 0),
             Appeared(PurePath('Appeared'), 0),
