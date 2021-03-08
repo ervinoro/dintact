@@ -39,9 +39,9 @@ def check(args: argparse.Namespace) -> None:
                 print(f"Verification failed: '{p}'.", file=sys.stderr)
         # Additionally check that index is complete
         for file in walk(cold_dir, []):
-            relpath: PurePath = file.relative_to(cold_dir)
-            if relpath not in index and relpath != PurePath("index.txt"):
-                print(f"File missing from index: '{relpath}'.", file=sys.stderr)
+            rel_path: PurePath = file.relative_to(cold_dir)
+            if rel_path not in index and rel_path != PurePath("index.txt"):
+                print(f"File missing from index: '{rel_path}'.", file=sys.stderr)
 
 
 def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
@@ -68,7 +68,7 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
             if path not in cold_index:
                 return [AddedCopied(path, 0, hot_hash)]
             elif cold_index[path] != cold_hash:
-                return [ModifiedCopied(path, os.path.getsize(hot_dir / path), hot_hash)]
+                return [ModifiedCopied(path, 0, hot_hash)]
             else:
                 return []
         else:
@@ -113,7 +113,7 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
             if hot_child not in cold_index:
                 changes.append(Added(hot_child, size, i))
             elif i == cold_index[hot_child]:
-                changes.append(Lost(hot_child, 0))
+                changes.append(Lost(hot_child, size))
             else:
                 changes.append(ModifiedLost(hot_child, size, i))
 
@@ -121,7 +121,8 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
         for cold_child in cold_children.difference(hot_children):
             if cold_child not in cold_index:
                 changes.append(Appeared(cold_child, 0))
-                pbar.update(sum([f.stat().st_size for f in (cold_dir / cold_child).rglob('*')]))
+                for file in walk(cold_dir / cold_child, cold_rules):
+                    pbar.update(file.stat().st_size)
             else:
                 i, size = hash_tree(cold_dir / cold_child, pbar)
                 if i == cold_index[cold_child]:

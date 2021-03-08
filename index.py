@@ -39,7 +39,7 @@ class Index(MutableMapping):
                     if meta['version'] != 1 or meta['algorithm'] != 'XXH128' or meta['coding'] != coding:
                         raise Exception("Can't load this index file!")
                     self.meta = meta
-                if self.meta is None:
+                else:
                     raise Exception("Index file header missing!")
 
                 for line in file:

@@ -29,8 +29,8 @@ def is_relevant(p: Path, rules: List[PathAwareGitWildMatchPattern]) -> bool:
     ignored = False
     for rule in rules:
         if rule.include is not None:
-            relpath = str(PurePosixPath(p.relative_to(rule.root)))
-            if relpath in rule.match((relpath,)):
+            rel_path = str(PurePosixPath(p.relative_to(rule.root)))
+            if rel_path in rule.match((rel_path,)):
                 ignored = rule.include
     return not ignored
 
