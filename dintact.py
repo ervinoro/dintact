@@ -29,6 +29,7 @@ def check(args: argparse.Namespace) -> None:
     cold_dir = Path(args.cold_dir)
     assert cold_dir.is_dir(), "cold_dir not found!"
     index = Index(cold_dir)
+    fail_count = 0
 
     # Set up progress bar
     total = sum([(cold_dir / p).stat().st_size if (cold_dir / p).exists() else 0 for p in index.keys()])
@@ -37,11 +38,18 @@ def check(args: argparse.Namespace) -> None:
         for p, h in index.items():
             if h != hash_file(cold_dir / p, pbar):
                 print(f"Verification failed: '{p}'.", file=sys.stderr)
+                fail_count += 1
         # Additionally check that index is complete
-        for file in walk(cold_dir, []):
+        for file in walk(cold_dir, [PathAwareGitWildMatchPattern('index.txt', cold_dir)]):
             rel_path: PurePath = file.relative_to(cold_dir)
-            if rel_path not in index and rel_path != PurePath("index.txt"):
+            if rel_path not in index:
                 print(f"File missing from index: '{rel_path}'.", file=sys.stderr)
+                fail_count += 1
+
+    if fail_count == 0:
+        print("OK: Data is intact!")
+    else:
+        print(f"FAIL: There were {fail_count} failures!")
 
 
 def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
@@ -187,6 +195,7 @@ def sync(args: argparse.Namespace) -> None:
             pbar.update(change.size)
 
     index.store()
+    print("OK: Done!")
 
 
 if __name__ == '__main__':
