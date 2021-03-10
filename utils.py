@@ -30,6 +30,8 @@ def is_relevant(p: Path, rules: List[PathAwareGitWildMatchPattern]) -> bool:
     for rule in rules:
         if rule.include is not None:
             rel_path = str(PurePosixPath(p.relative_to(rule.root)))
+            if p.is_dir():
+                rel_path += '/'  # https://bugs.python.org/issue21039
             if rel_path in rule.match((rel_path,)):
                 ignored = rule.include
     return not ignored
