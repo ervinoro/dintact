@@ -1,5 +1,10 @@
 # dintact
 
+[![Lint and Test](https://github.com/ervinoro/dintact/actions/workflows/lint-and-test.yml/badge.svg)](https://github.com/ervinoro/dintact/actions/workflows/lint-and-test.yml)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=ervinoro_dintact&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=ervinoro_dintact)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=ervinoro_dintact&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=ervinoro_dintact)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=ervinoro_dintact&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=ervinoro_dintact)
+
 Make sure your data is still intact.
 
 A simple utility, mostly geared towards enabling you to notice when cold backup of data needs to be re-created due to failing storage or similar issues. It keeps a simple text file `index.txt` listing hashes of all files in your archive.
