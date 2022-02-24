@@ -191,12 +191,12 @@ class Test(TestCase):
                 i = Index(p)
                 self.assertEqual(index, i)
                 mock_open.assert_called_once()
-                self.assertEqual(p / "index.txt", mock_open.call_args[0][0])
+                self.assertEqual(p / Index.FILENAME, mock_open.call_args[0][0])
 
         with mock.patch('io.open', mock.mock_open()) as mock_open:
             i.store()
             mock_open.assert_called_once()
-            self.assertEqual(p / "index.txt", mock_open.call_args[0][0])
+            self.assertEqual(p / Index.FILENAME, mock_open.call_args[0][0])
             outfile = ''.join(c.args[0] for c in mock_open().write.mock_calls if c.args[0][0] != '#')
             self.assertEqual(set(file.split('\n')), set(outfile.split('\n')))
 
@@ -256,7 +256,7 @@ class Test(TestCase):
         with mock.patch('io.open', mock.mock_open()) as mock_open:
             i.store()
             mock_open.assert_called_once()
-            self.assertEqual(p / "index.txt", mock_open.call_args[0][0])
+            self.assertEqual(p / Index.FILENAME, mock_open.call_args[0][0])
             self.assertEqual('cp775', mock_open.call_args[0][3])
             output = mock_open().write.mock_calls[0].args[0]
             self.assertEqual('# dintact index ', output[:16])

@@ -58,11 +58,6 @@ class TestSlurp(TestCase):
 
 
 class TestHashFile(TestCase):
-    # """Returns checksum of file content"""
-    # """Return checksums of two files, and a boolean whether or not these files have identical content.
-    #
-    # Can return 'not equal' even when hashes collide.
-    # """
     xxhash_examples = [
         {"data": b'', "hexdigest": '99aa06d3014798d86001c324468d497f'},
         {"data": b'Test', "hexdigest": '391c8305c491690bc2da658a2d6348d5'},

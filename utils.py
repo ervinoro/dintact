@@ -23,6 +23,16 @@ class PathAwareGitWildMatchPattern(pathspec.patterns.GitWildMatchPattern):
         self.root = root
 
 
+def root_rules(path: Path) -> List[PathAwareGitWildMatchPattern]:
+    return [PathAwareGitWildMatchPattern(Index.FILENAME, path)]
+
+
+def add_parsed_rules(path: Path, rules: List[PathAwareGitWildMatchPattern]) -> None:
+    if (path / '.gitignore').exists():
+        with open(path / '.gitignore', 'r') as f:
+            rules.extend(map(lambda r: PathAwareGitWildMatchPattern(r, path), f.read().splitlines()))
+
+
 def is_relevant(p: Path, rules: List[PathAwareGitWildMatchPattern]) -> bool:
     if not (p.is_file() or any(p.iterdir())):
         return False
@@ -37,20 +47,18 @@ def is_relevant(p: Path, rules: List[PathAwareGitWildMatchPattern]) -> bool:
     return not ignored
 
 
-def walk(p: Path, rules: List[PathAwareGitWildMatchPattern]) -> Generator[Path, None, None]:
-    if is_relevant(p, rules):
-        if p.is_file():
-            yield p
-        elif p.is_dir():
-            if (p / '.gitignore').exists():
-                with open(p / '.gitignore', 'r') as f:
-                    for line in f:
-                        rules.append(PathAwareGitWildMatchPattern(line, p))
-            for c in p.iterdir():
-                for cc in walk(c, rules[:]):
-                    yield cc
-        else:  # pragma: no cover
-            raise Exception(f"Unknown thing {p}")
+def walk(path: Path, rules: List[PathAwareGitWildMatchPattern]) -> Generator[Path, None, None]:
+    if not is_relevant(path, rules):
+        return
+    if path.is_file():
+        yield path
+    elif path.is_dir():
+        add_parsed_rules(path, rules)
+        for child_path in (path).iterdir():
+            for grandchild_path in walk(child_path, rules[:]):
+                yield grandchild_path
+    else:  # pragma: no cover
+        raise ValueError(f"Unknown thing {dir}")
 
 
 def slurp(filename: Path, pbar: tqdm, chunk_size: int = CHUNK_SIZE) -> Generator[bytes, None, None]:
@@ -121,7 +129,7 @@ def rm(target: os.PathLike):
     elif os.path.isfile(target):
         os.remove(target)
     else:  # pragma: no cover
-        raise Exception(f"Unknown thing {target}")
+        raise ValueError(f"Unknown thing {target}")
 
 
 def yesno(prompt: str, default: bool = True) -> bool:

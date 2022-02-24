@@ -13,40 +13,42 @@ class Index(MutableMapping):
 
     Can either be used in-memory or as a file interface.
 
-    :param cold_dir: directory containing index.txt, or None (in which case empty in-memory index is created)
-    :param coding: file encoding to use when reading index.txt
+    :param cold_dir: directory containing STD_NAME, or None (in which case empty in-memory index is created)
+    :param coding: file encoding to use when reading STD_NAME
     """
+    FILENAME = 'index.txt'
     meta: Union[dict, None] = None
 
     def __init__(self, cold_dir: Union[Path, None] = None, coding: str = 'utf8') -> None:
         super().__init__()
         self.dirs: Dict[PurePath, Index] = {}
         self.files: Dict[PurePath, str] = {}
-        if cold_dir:
-            self.path = cold_dir / "index.txt"
-            if not self.path.exists():
-                self.path.touch(exist_ok=False)
-                self.meta = {
-                    'version': 1,
-                    'algorithm': 'XXH128',
-                    'coding': 'utf8',
-                }
-                return
-            with self.path.open('r', encoding=coding) as file:
-                header_line = file.readline()
-                if header_line.startswith('# dintact index '):
-                    meta = json.loads(header_line[16:])
-                    if meta['version'] != 1 or meta['algorithm'] != 'XXH128' or meta['coding'] != coding:
-                        raise Exception("Can't load this index file!")
-                    self.meta = meta
-                else:
-                    raise Exception("Index file header missing!")
+        if cold_dir is None:
+            return
+        self.path = cold_dir / self.FILENAME
+        if not self.path.exists():
+            self.path.touch(exist_ok=False)
+            self.meta = {
+                'version': 1,
+                'algorithm': 'XXH128',
+                'coding': 'utf8',
+            }
+            return
+        with self.path.open('r', encoding=coding) as file:
+            header_line = file.readline()
+            if header_line.startswith('# dintact index '):
+                meta = json.loads(header_line[16:])
+                if meta['version'] != 1 or meta['algorithm'] != 'XXH128' or meta['coding'] != coding:
+                    raise ValueError("Can't load this index file!")
+                self.meta = meta
+            else:
+                raise ValueError("Index file header missing!")
 
-                for line in file:
-                    if not line.strip() or line[0] == "#":
-                        continue
-                    checksum, name = line.strip().split("  ", 1)
-                    self[PurePath(name)] = checksum
+            for line in file:
+                if not line.strip() or line[0] == "#":
+                    continue
+                checksum, name = line.strip().split("  ", 1)
+                self[PurePath(name)] = checksum
 
     def store(self):
         """Store to cold backup index file"""
@@ -61,8 +63,12 @@ class Index(MutableMapping):
     def __len__(self) -> int:
         return sum([len(d) for d in self.dirs.values()]) + len(self.files)
 
+    def _validate_key(self, k: PurePath):
+        assert not k.is_absolute(), "Index keys must be relative paths"
+
     def __contains__(self, k: object) -> bool:
         if isinstance(k, PurePath):
+            self._validate_key(k)
             if len(k.parts) == 0:
                 return True
             elif len(k.parts) == 1:
@@ -75,7 +81,7 @@ class Index(MutableMapping):
             return False
 
     def __getitem__(self, k: PurePath) -> Union[str, Index]:
-        assert not k.is_absolute(), "Index keys must be relative paths"
+        self._validate_key(k)
         if len(k.parts) == 0:
             return self
         elif len(k.parts) == 1:
@@ -89,7 +95,7 @@ class Index(MutableMapping):
             return self.dirs[PurePath(k.parts[0])][PurePath(*k.parts[1:])]
 
     def __setitem__(self, k: PurePath, v: Union[str, Index]) -> None:
-        assert not k.is_absolute(), "Index keys must be relative paths"
+        self._validate_key(k)
         if len(k.parts) == 0:
             raise ValueError("can't set self (i think)")
         elif len(k.parts) == 1:
@@ -108,7 +114,7 @@ class Index(MutableMapping):
             self.dirs[PurePath(k.parts[0])][PurePath(*k.parts[1:])] = v
 
     def __delitem__(self, k: PurePath) -> None:
-        assert not k.is_absolute(), "Index keys must be relative paths"
+        self._validate_key(k)
         if len(k.parts) == 0:
             raise ValueError("can't del self (i think)")
         elif len(k.parts) == 1:
@@ -124,8 +130,10 @@ class Index(MutableMapping):
                 del self.dirs[PurePath(k.parts[0])]
 
     def __iter__(self) -> Iterator[PurePath]:
-        return itertools.chain(*[list(map(lambda n: d[0] / n, iter(d[1]))) for d in self.dirs.items()],
-                               iter(self.files))
+        return itertools.chain(
+            (dir / file for dir in self.dirs for file in self.dirs[dir]),
+            self.files
+        )
 
     def iterdir(self) -> Iterator[PurePath]:
         """Non-recursive only iterate immediate children"""

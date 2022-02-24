@@ -9,13 +9,22 @@ from changes import (Added, AddedAppeared, AddedCopied, Appeared, Corrupted,
                      ModifiedLost, Removed, RemovedCorrupted, RemovedLost)
 from dintact import walk_trees
 from index import Index
+from utils import root_rules
 
 
 class TestWalkTrees(unittest.TestCase):
     def test_bundled_folder(self):
         os.chdir(sys.path[0])
         pbar = mock.MagicMock()
-        changes = walk_trees(PurePath(), Index(Path('cold')), Path('hot'), Path('cold'), [], [], pbar)
+        changes = walk_trees(
+            PurePath(),
+            Index(Path('cold')),
+            Path('hot'),
+            Path('cold'),
+            root_rules(Path('hot')),
+            root_rules(Path('cold')),
+            pbar
+        )
         self.assertEqual(sorted([
             ModifiedCopied(PurePath('ModifiedCopied.txt'), Index()),
             Modified(PurePath('Modified.txt'), 0, [], Index()),
