@@ -105,14 +105,11 @@ def _compare_dirs(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Pa
     for cold_child in cold_children.difference(hot_children):
         if cold_child not in cold_index:
             changes.append(Appeared(cold_child))
-            for file in walk(cold_dir / cold_child, cold_rules):
-                pbar.update(file.stat().st_size)
+            pbar.update(sum(file.stat().st_size for file in walk(cold_dir / cold_child, cold_rules)))
+        elif hash_tree(cold_dir / cold_child, pbar)[0] == cold_index[cold_child]:
+            changes.append(Removed(cold_child))
         else:
-            i, size = hash_tree(cold_dir / cold_child, pbar)
-            if i == cold_index[cold_child]:
-                changes.append(Removed(cold_child))
-            else:
-                changes.append(RemovedCorrupted(cold_child))
+            changes.append(RemovedCorrupted(cold_child))
 
     # H C I: 0 0 1
     for index_child in index_children.difference(hot_children).difference(cold_children):
