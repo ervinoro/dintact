@@ -104,15 +104,14 @@ def hash_tree(path: Path, pbar: tqdm) -> Tuple[Union[Index, str], int]:
         raise NotImplementedError(f"Unknown {path}")
 
 
-def cp(source: os.PathLike, target: os.PathLike):
+def cp(source: Path, target: Path, rules: List[PathAwareGitWildMatchPattern], pbar: tqdm):
     assert os.path.exists(source), "can't copy, doesn't exist (internal error)"
     assert not os.path.exists(target), "remove explicitly first (internal error)"
-    if os.path.isdir(source):
-        shutil.copytree(source, target)
-    elif os.path.isfile(source):
-        shutil.copyfile(source, target)
-    else:  # pragma: no cover
-        raise Exception(f"Unknown thing {source}")
+    for srcf in walk(source, rules):
+        dstf = target / srcf.relative_to(source)
+        dstf.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(srcf, dstf)
+        pbar.update(srcf.stat().st_size)
 
 
 def rm(target: os.PathLike):

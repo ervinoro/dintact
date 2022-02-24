@@ -4,10 +4,10 @@ import tempfile
 import unittest.mock as mock
 from io import StringIO
 from pathlib import Path
-from unittest import TestCase
+from unittest import TestCase, main
 
-from utils import (cp, hash_compare_files, hash_file, hash_tree, rm, slurp,
-                   walk, yesno)
+from utils import (PathAwareGitWildMatchPattern, cp, hash_compare_files,
+                   hash_file, hash_tree, rm, slurp, walk, yesno)
 
 
 class TestSlurp(TestCase):
@@ -105,7 +105,8 @@ class TestCp(TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
             (tmpdir / 'a.txt').write_text("asdf_content")
-            cp(tmpdir / 'a.txt', tmpdir / 'b.txt')
+            pbar = mock.MagicMock()
+            cp(tmpdir / 'a.txt', tmpdir / 'b.txt', [], pbar)
             self.assertTrue((tmpdir / 'a.txt').exists())
             self.assertEqual("asdf_content", (tmpdir / 'a.txt').read_text())
             self.assertTrue((tmpdir / 'b.txt').exists())
@@ -117,17 +118,25 @@ class TestCp(TestCase):
             (tmpdir / 'c').mkdir()
             (tmpdir / 'c' / 'a.txt').write_text("asdf_content")
             (tmpdir / 'c' / 'b.txt').write_text("bsdf_content")
-            cp(tmpdir / 'c', tmpdir / 'd')
+            (tmpdir / 'c' / 'c.txt').write_text("csdf_content")
+            (tmpdir / 'c' / '.gitignore').write_text("c.txt")
+            pbar = mock.MagicMock()
+            cp(tmpdir / 'c', tmpdir / 'd', [PathAwareGitWildMatchPattern('a.txt', tmpdir)], pbar)
             self.assertTrue((tmpdir / 'c').exists())
             self.assertEqual("asdf_content", (tmpdir / 'c' / 'a.txt').read_text())
             self.assertEqual("bsdf_content", (tmpdir / 'c' / 'b.txt').read_text())
+            self.assertEqual("csdf_content", (tmpdir / 'c' / 'c.txt').read_text())
+            self.assertEqual("c.txt", (tmpdir / 'c' / '.gitignore').read_text())
             self.assertTrue((tmpdir / 'd').exists())
-            self.assertEqual("asdf_content", (tmpdir / 'd' / 'a.txt').read_text())
             self.assertEqual("bsdf_content", (tmpdir / 'd' / 'b.txt').read_text())
+            self.assertEqual("c.txt", (tmpdir / 'c' / '.gitignore').read_text())
+            self.assertFalse((tmpdir / 'd' / 'a.txt').exists())
+            self.assertFalse((tmpdir / 'd' / 'c.txt').exists())
 
     def test_non_existing(self):
+        pbar = mock.MagicMock()
         with self.assertRaises(AssertionError):
-            cp(Path('asdf_path'), Path('asdf_path'))
+            cp(Path('asdf_path'), Path('asdf_path'), [], pbar)
 
 
 class TestRm(TestCase):
@@ -195,3 +204,7 @@ class TestWalk(TestCase):
             Path('ignorable/c/e.txt'),
             Path('ignorable/f/g.txt')
         ]), sorted(list(walk(Path('ignorable'), []))))
+
+
+if __name__ == "__main__":
+    main()

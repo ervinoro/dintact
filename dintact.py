@@ -74,21 +74,21 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
         hot_hash, cold_hash, eq = hash_compare_files(hot_dir / path, cold_dir / path, pbar)
         if eq:
             if path not in cold_index:
-                return [AddedCopied(path, 0, hot_hash)]
+                return [AddedCopied(path, hot_hash)]
             elif cold_index[path] != cold_hash:
-                return [ModifiedCopied(path, 0, hot_hash)]
+                return [ModifiedCopied(path, hot_hash)]
             else:
                 return []
         else:
             if path not in cold_index:
-                return [AddedAppeared(path, (hot_dir / path).stat().st_size, hot_hash)]
+                return [AddedAppeared(path, (hot_dir / path).stat().st_size, hot_rules, hot_hash)]
             elif cold_index[path] != cold_hash:
                 if hot_hash == cold_index[path]:
-                    return [Corrupted(path, os.path.getsize(hot_dir / path), hot_hash)]
+                    return [Corrupted(path, os.path.getsize(hot_dir / path), hot_rules)]
                 else:
-                    return [ModifiedCorrupted(path, os.path.getsize(hot_dir / path), hot_hash)]
+                    return [ModifiedCorrupted(path, os.path.getsize(hot_dir / path), hot_rules, hot_hash)]
             else:
-                return [Modified(path, (hot_dir / path).stat().st_size, hot_hash)]
+                return [Modified(path, (hot_dir / path).stat().st_size, hot_rules, hot_hash)]
 
     elif not (hot_dir / path).is_dir() or not (cold_dir / path).is_dir() or isinstance(sub_index, str):
         raise NotImplementedError("File/Folder name collision")
@@ -96,11 +96,12 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
     else:
         changes: List[Change] = []
 
-        if (hot_dir / path / '.gitignore').exists():
-            with open(hot_dir / path / '.gitignore', 'r') as f:
+        GITIGNORE = '.gitignore'
+        if (hot_dir / path / GITIGNORE).exists():
+            with open(hot_dir / path / GITIGNORE, 'r') as f:
                 hot_rules += map(lambda r: PathAwareGitWildMatchPattern(r, hot_dir / path), f.read().splitlines())
-        if (cold_dir / path / '.gitignore').exists():
-            with open(cold_dir / path / '.gitignore', 'r') as f:
+        if (cold_dir / path / GITIGNORE).exists():
+            with open(cold_dir / path / GITIGNORE, 'r') as f:
                 cold_rules += map(lambda r: PathAwareGitWildMatchPattern(r, cold_dir / path), f.read().splitlines())
         if path == PurePath():
             hot_rules += [PathAwareGitWildMatchPattern('index.txt', hot_dir / path)]
@@ -119,28 +120,28 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
         for hot_child in hot_children.difference(cold_children):
             i, size = hash_tree(hot_dir / hot_child, pbar)
             if hot_child not in cold_index:
-                changes.append(Added(hot_child, size, i))
+                changes.append(Added(hot_child, size, hot_rules, i))
             elif i == cold_index[hot_child]:
-                changes.append(Lost(hot_child, size))
+                changes.append(Lost(hot_child, size, hot_rules))
             else:
-                changes.append(ModifiedLost(hot_child, size, i))
+                changes.append(ModifiedLost(hot_child, size, hot_rules, i))
 
         # H C I: 0 1 X
         for cold_child in cold_children.difference(hot_children):
             if cold_child not in cold_index:
-                changes.append(Appeared(cold_child, 0))
+                changes.append(Appeared(cold_child))
                 for file in walk(cold_dir / cold_child, cold_rules):
                     pbar.update(file.stat().st_size)
             else:
                 i, size = hash_tree(cold_dir / cold_child, pbar)
                 if i == cold_index[cold_child]:
-                    changes.append(Removed(cold_child, 0))
+                    changes.append(Removed(cold_child))
                 else:
-                    changes.append(RemovedCorrupted(cold_child, 0))
+                    changes.append(RemovedCorrupted(cold_child))
 
         # H C I: 0 0 1
         for index_child in index_children.difference(hot_children).difference(cold_children):
-            changes.append(RemovedLost(index_child, 0))
+            changes.append(RemovedLost(index_child))
 
         # Recursive: (H C I: 1 1 X)
         for child in hot_children & cold_children:
@@ -181,7 +182,7 @@ def sync(args: argparse.Namespace) -> None:
 
     # Confirm each change with the user
     changes.sort(key=attrgetter('name'))
-    actions = []
+    actions: List[Change] = []
     action_total = 0
     for change in changes:
         if yesno(str(change), default=False):
@@ -191,8 +192,7 @@ def sync(args: argparse.Namespace) -> None:
     # Carry out all confirmed changes
     with tqdm(total=action_total, unit="B", unit_scale=True) as pbar:
         for change in actions:
-            change.apply(args.hot_dir, args.cold_dir, index)
-            pbar.update(change.size)
+            change.apply(args.hot_dir, args.cold_dir, index, pbar)
 
     index.store()
     print("OK: Done!")

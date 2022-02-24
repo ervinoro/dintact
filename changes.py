@@ -20,12 +20,13 @@ H C I
 0 0 0 NULL
 
 """
-import os
-from pathlib import PurePath
-from typing import Union
+from pathlib import Path, PurePath
+from typing import List, Union
+
+from tqdm import tqdm
 
 from index import Index
-from utils import cp, rm
+from utils import PathAwareGitWildMatchPattern, cp, rm
 
 
 class Change:
@@ -33,17 +34,19 @@ class Change:
 
     :param name: relative path to the changed entity
     :param size: of data to be moved to cold backup in bytes (for progressbar)
-    :param index: sub-index with checksums of all new files
     """
     has_been: str  # description of what has happened in hot copy
     action: str  # description of what could be done to mimic it in cold backup
 
-    def __init__(self, name: PurePath, size: int, index: Union[Index, str, None] = None):
+    def __init__(
+        self,
+        name: PurePath,
+        size: int = 0,
+    ):
         self.name = name
         self.size = size
-        self.index = index
 
-    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index) -> None:
+    def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm) -> None:
         """Apply the change from hot_dir to cold_dir
 
         :param hot_dir: hot copy base path
@@ -67,18 +70,57 @@ class Change:
         return hash(self.__id_members())
 
 
-class ChangeWithNewChecksums(Change):
-    index: Union[Index, str]
+class ChangeNeedsFilesMoved(Change):
+    """
+    :param name: relative path to the changed entity
+    :param size: of data to be moved to cold backup in bytes (for progressbar)
+    :param rules: rules that should apply to the action for this change
+    """
+    def __init__(
+        self,
+        name: PurePath,
+        size: int,
+        rules: List[PathAwareGitWildMatchPattern],
+    ):
+        super().__init__(name, size)
+        self.rules = rules
 
-    def __init__(self, name: PurePath, size: int, index: Union[Index, str]):
-        super().__init__(name, size, index)
+
+class ChangeNeedsFilesMovedAndIndexUpdated(ChangeNeedsFilesMoved):
+    """
+    :param name: relative path to the changed entity
+    :param size: of data to be moved to cold backup in bytes (for progressbar)
+    :param rules: rules that should apply to the action for this change
+    :param index: sub-index with checksums of all new files
+    """
+    def __init__(
+        self,
+        name: PurePath,
+        size: int,
+        rules: List[PathAwareGitWildMatchPattern],
+        index: Union[Index, str],
+    ):
+        super().__init__(name, size, rules)
+        self.index = index
 
 
-class AddedCopied(ChangeWithNewChecksums):
+class AddedCopied(Change):
+    """
+    :param name: relative path to the changed entity
+    :param index: sub-index with checksums of all new files
+    """
     has_been = "added and manually copied (without updating the index)"
     action = "add it to cold index"
 
-    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
+    def __init__(
+        self,
+        name: PurePath,
+        index: Union[Index, str],
+    ):
+        super().__init__(name)
+        self.index = index
+
+    def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
         index[self.name] = self.index
 
 
@@ -86,12 +128,12 @@ class ModifiedCopied(AddedCopied):
     has_been = "modified and manually copied (without updating the index)"
 
 
-class Added(ChangeWithNewChecksums):
+class Added(ChangeNeedsFilesMovedAndIndexUpdated):
     has_been = "added"
     action = "copy it to cold backup"
 
-    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
-        cp(hot_dir / self.name, cold_dir / self.name)
+    def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
+        cp(hot_dir / self.name, cold_dir / self.name, self.rules, pbar)
         index[self.name] = self.index
 
 
@@ -99,19 +141,19 @@ class ModifiedLost(Added):
     has_been = "modified in hot and lost from cold backup"
 
 
-class Lost(Change):
+class Lost(ChangeNeedsFilesMoved):
     has_been = "lost from cold backup"
     action = "copy it to cold backup"
 
-    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
-        cp(hot_dir / self.name, cold_dir / self.name)
+    def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
+        cp(hot_dir / self.name, cold_dir / self.name, self.rules, pbar)
 
 
 class Removed(Change):
     has_been = "removed"
     action = "remove it from cold backup"
 
-    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
+    def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
         rm(cold_dir / self.name)
         del index[self.name]
 
@@ -120,23 +162,23 @@ class RemovedCorrupted(Removed):
     has_been = "removed (from hot storage) and corrupted (in cold backup)"
 
 
-class Modified(ChangeWithNewChecksums):
+class Modified(ChangeNeedsFilesMovedAndIndexUpdated):
     has_been = "modified"
-    action = "copy it to cold backup"
+    action = "overwrite from hot to cold"
 
-    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
+    def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
         rm(cold_dir / self.name)
-        cp(hot_dir / self.name, cold_dir / self.name)
+        cp(hot_dir / self.name, cold_dir / self.name, self.rules, pbar)
         index[self.name] = self.index
 
 
-class Corrupted(Change):
+class Corrupted(ChangeNeedsFilesMoved):
     has_been = "corrupted (in cold backup)"
     action = "overwrite from hot to cold"
 
-    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
+    def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
         rm(cold_dir / self.name)
-        cp(hot_dir / self.name, cold_dir / self.name)
+        cp(hot_dir / self.name, cold_dir / self.name, self.rules, pbar)
 
 
 class ModifiedCorrupted(Modified):
@@ -145,14 +187,13 @@ class ModifiedCorrupted(Modified):
 
 class AddedAppeared(Modified):
     has_been = "added to both (different files)"
-    action = "overwrite from hot to cold"
 
 
 class Appeared(Change):
     has_been = "manually added to cold backup (but not index)"
     action = "delete if from cold backup"
 
-    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
+    def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
         rm(cold_dir / self.name)
 
 
@@ -160,5 +201,5 @@ class RemovedLost(Change):
     has_been = "removed from hot and lost from cold backup"
     action = "remove it from index"
 
-    def apply(self, hot_dir: os.PathLike, cold_dir: os.PathLike, index: Index):
+    def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
         del index[self.name]
