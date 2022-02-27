@@ -63,7 +63,8 @@ class Index(MutableMapping):
     def __len__(self) -> int:
         return sum([len(d) for d in self.dirs.values()]) + len(self.files)
 
-    def _validate_key(self, k: PurePath):
+    @staticmethod
+    def _validate_key(k: PurePath):
         assert not k.is_absolute(), "Index keys must be relative paths"
 
     def __contains__(self, k: object) -> bool:
@@ -106,7 +107,7 @@ class Index(MutableMapping):
                 assert k not in self.files
                 self.dirs[k] = v
             else:
-                raise TypeError(f"Unallowed value of type {type(v)}")
+                raise TypeError(f"Disallowed value of type {type(v)}")
         else:
             assert PurePath(k.parts[0]) not in self.files, "file/directory name collision"
             if PurePath(k.parts[0]) not in self.dirs:
@@ -131,7 +132,7 @@ class Index(MutableMapping):
 
     def __iter__(self) -> Iterator[PurePath]:
         return itertools.chain(
-            (dir / file for dir in self.dirs for file in self.dirs[dir]),
+            (directory / file for directory in self.dirs for file in self.dirs[directory]),
             self.files
         )
 

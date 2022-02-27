@@ -35,12 +35,12 @@ def check(args: argparse.Namespace) -> None:
     # Set up progress bar
     total = sum([(cold_dir / p).stat().st_size if (cold_dir / p).exists() else 0 for p in index.keys()])
     with tqdm(total=total, unit="B", unit_scale=True) as pbar:
-        # Check that index is correct
+        # Firstly, check that the index is correct
         for p, h in index.items():
             if h != hash_file(cold_dir / p, pbar):
                 print(f"Verification failed: '{p}'.", file=sys.stderr)
                 fail_count += 1
-        # Additionally check that index is complete
+        # Secondly, check that the index is complete
         for file in walk(cold_dir, root_rules(cold_dir)):
             rel_path: PurePath = file.relative_to(cold_dir)
             if rel_path not in index:

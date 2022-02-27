@@ -54,7 +54,7 @@ def walk(path: Path, rules: List[PathAwareGitWildMatchPattern]) -> Generator[Pat
         yield path
     elif path.is_dir():
         add_parsed_rules(path, rules)
-        for child_path in (path).iterdir():
+        for child_path in path.iterdir():
             for grandchild_path in walk(child_path, rules[:]):
                 yield grandchild_path
     else:  # pragma: no cover
@@ -81,7 +81,7 @@ def hash_file(path: Path, pbar: tqdm) -> str:
 
 
 def hash_compare_files(a_path: Path, b_path: Path, pbar: tqdm) -> Tuple[str, str, bool]:
-    """Return checksums of two files, and a boolean whether or not these files have identical content.
+    """Return checksums of two files, and a boolean indicating if these files have identical content.
 
     Can return 'not equal' even when hashes collide.
     """
@@ -115,11 +115,11 @@ def hash_tree(path: Path, pbar: tqdm) -> Tuple[Union[Index, str], int]:
 def cp(source: Path, target: Path, rules: List[PathAwareGitWildMatchPattern], pbar: tqdm):
     assert os.path.exists(source), "can't copy, doesn't exist (internal error)"
     assert not os.path.exists(target), "remove explicitly first (internal error)"
-    for srcf in walk(source, rules):
-        dstf = target / srcf.relative_to(source)
-        dstf.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(srcf, dstf)
-        pbar.update(srcf.stat().st_size)
+    for src_f in walk(source, rules):
+        dst_f = target / src_f.relative_to(source)
+        dst_f.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src_f, dst_f)
+        pbar.update(src_f.stat().st_size)
 
 
 def rm(target: os.PathLike):
