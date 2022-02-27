@@ -185,15 +185,19 @@ class Test(TestCase):
         read_data = '# dintact index {"version": 1, "algorithm": "XXH128", "coding": "utf8"}\n' + file
         p: Path = Path('foo_filename')
         i: Index
-        with mock.patch.object(Path, 'exists') as mock_exists:
-            mock_exists.return_value = True
-            with mock.patch('io.open', mock.mock_open(read_data=read_data)) as mock_open:
-                i = Index(p)
-                self.assertEqual(index, i)
-                mock_open.assert_called_once()
-                self.assertEqual(p / Index.FILENAME, mock_open.call_args[0][0])
+        mock_open = mock.mock_open(read_data=read_data)
+        with mock.patch.multiple(
+                Path,
+                exists=lambda *args, **kwargs: True,
+                open=lambda *args, **kwargs: mock_open(*args, **kwargs)
+        ):
+            i = Index(p)
+            self.assertEqual(index, i)
+            mock_open.assert_called_once()
+            self.assertEqual(p / Index.FILENAME, mock_open.call_args[0][0])
 
-        with mock.patch('io.open', mock.mock_open()) as mock_open:
+        mock_open = mock.mock_open(read_data=read_data)
+        with mock.patch.multiple(Path, open=lambda *args, **kwargs: mock_open(*args, **kwargs)):
             i.store()
             mock_open.assert_called_once()
             self.assertEqual(p / Index.FILENAME, mock_open.call_args[0][0])
@@ -222,10 +226,12 @@ class Test(TestCase):
 
     def assert_header_raises(self, header: str):
         p: Path = Path('foo_filename')
-        with mock.patch.object(Path, 'exists') as mock_exists:
-            mock_exists.return_value = True
-            with mock.patch('io.open', mock.mock_open(read_data=header)):
-                self.assertRaises(Exception, lambda: Index(p))
+        with mock.patch.multiple(
+                Path,
+                exists=lambda *args, **kwargs: True,
+                open=lambda *args, **kwargs: mock.mock_open(read_data=header)(*args, **kwargs)
+        ):
+            self.assertRaises(Exception, lambda: Index(p))
 
     def test_incompatible_version_raises(self):
         self.assert_header_raises('# dintact index {"version": 2, "algorithm": "XXH128", "coding": "utf8"}')
@@ -242,22 +248,24 @@ class Test(TestCase):
     def test_writes_header(self):
         p: Path = Path('foo_filename')
         i: Index
-        with mock.patch.object(Path, 'touch') as mock_touch:
-            with mock.patch.object(Path, 'exists') as mock_exists:
-                mock_exists.return_value = False
-                with mock.patch('io.open', mock.mock_open(read_data='')) as mock_open:
-                    i = Index(p)
+        mock_touch = mock.Mock()
+        with mock.patch.multiple(
+                Path,
+                touch=mock_touch,
+                exists=lambda *args, **kwargs: False,
+                open=lambda *args, **kwargs: mock.mock_open(read_data='')(*args, **kwargs)
+        ):
+            i = Index(p)
             mock_touch.assert_called_once()
         i.meta = {
             'version': 42,
             'algorithm': 'SHA256',
             'coding': 'cp775',
         }
-        with mock.patch('io.open', mock.mock_open()) as mock_open:
+        mock_open = mock.mock_open()
+        with mock.patch.multiple(Path, open=lambda *args, **kwargs: mock_open(*args, **kwargs)):
             i.store()
-            mock_open.assert_called_once()
-            self.assertEqual(p / Index.FILENAME, mock_open.call_args[0][0])
-            self.assertEqual('cp775', mock_open.call_args[0][3])
+            mock_open.assert_called_once_with(p / Index.FILENAME, 'w', encoding='cp775')
             output = mock_open().write.mock_calls[0].args[0]
             self.assertEqual('# dintact index ', output[:16])
             self.assertLessEqual(
