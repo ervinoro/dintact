@@ -1,3 +1,7 @@
 [run]
 branch = True
 omit = env/*
+command_line = -m unittest discover test
+
+[lcov]
+output = coverage.xml
