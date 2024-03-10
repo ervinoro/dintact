@@ -6,8 +6,8 @@ from io import StringIO
 from pathlib import Path
 from unittest import TestCase, main
 
-from utils import (PathAwareGitWildMatchPattern, cp, hash_compare_files,
-                   hash_file, hash_tree, rm, slurp, walk, yesno)
+from utils import (PathAwareGitMatchPattern, cp, hash_compare_files, hash_file,
+                   hash_tree, rm, slurp, walk, yesno)
 
 
 class TestSlurp(TestCase):
@@ -116,7 +116,7 @@ class TestCp(TestCase):
             (tmpdir / 'c' / 'c.txt').write_text("csdf_content")
             (tmpdir / 'c' / '.gitignore').write_text("c.txt")
             pbar = mock.MagicMock()
-            cp(tmpdir / 'c', tmpdir / 'd', [PathAwareGitWildMatchPattern('a.txt', tmpdir)], pbar)
+            cp(tmpdir / 'c', tmpdir / 'd', [PathAwareGitMatchPattern('a.txt', tmpdir)], pbar)
             self.assertTrue((tmpdir / 'c').exists())
             self.assertEqual("asdf_content", (tmpdir / 'c' / 'a.txt').read_text())
             self.assertEqual("bsdf_content", (tmpdir / 'c' / 'b.txt').read_text())

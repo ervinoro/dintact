@@ -26,7 +26,7 @@ from typing import List, Union
 from tqdm import tqdm
 
 from index import Index
-from utils import PathAwareGitWildMatchPattern, cp, rm
+from utils import PathAwareGitMatchPattern, cp, rm
 
 
 class Change:
@@ -80,7 +80,7 @@ class ChangeNeedsFilesMoved(Change):
         self,
         name: PurePath,
         size: int,
-        rules: List[PathAwareGitWildMatchPattern],
+        rules: List[PathAwareGitMatchPattern],
     ):
         super().__init__(name, size)
         self.rules = rules
@@ -97,7 +97,7 @@ class ChangeNeedsFilesMovedAndIndexUpdated(ChangeNeedsFilesMoved):
         self,
         name: PurePath,
         size: int,
-        rules: List[PathAwareGitWildMatchPattern],
+        rules: List[PathAwareGitMatchPattern],
         index: Union[Index, str],
     ):
         super().__init__(name, size, rules)

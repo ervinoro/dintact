@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import itertools
 import os
 import sys
 from operator import attrgetter
@@ -14,7 +13,7 @@ from changes import (Added, AddedAppeared, AddedCopied, Appeared, Change,
                      ModifiedCorrupted, ModifiedLost, Removed,
                      RemovedCorrupted, RemovedLost)
 from index import Index
-from utils import (PathAwareGitWildMatchPattern, add_parsed_rules,
+from utils import (PathAwareGitMatchPattern, add_path_rules,
                    hash_compare_files, hash_file, hash_tree, is_relevant,
                    root_rules, walk, yesno)
 
@@ -75,12 +74,12 @@ def _compare_files(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: P
 
 
 def _compare_dirs(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
-                  hot_rules: List[PathAwareGitWildMatchPattern], cold_rules: List[PathAwareGitWildMatchPattern],
+                  hot_rules: List[PathAwareGitMatchPattern], cold_rules: List[PathAwareGitMatchPattern],
                   sub_index: Union[Index, None], pbar: tqdm) -> List[Change]:
     changes: List[Change] = []
 
-    add_parsed_rules(hot_dir / path, hot_rules)
-    add_parsed_rules(cold_dir / path, cold_rules)
+    add_path_rules(hot_dir / path, hot_rules)
+    add_path_rules(cold_dir / path, cold_rules)
 
     hot_children: Set[PurePath] = set(map(lambda abs_path: abs_path.relative_to(hot_dir),
                                           filter(lambda p: is_relevant(p, hot_rules),
@@ -124,7 +123,7 @@ def _compare_dirs(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Pa
 
 
 def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
-               hot_rules: List[PathAwareGitWildMatchPattern], cold_rules: List[PathAwareGitWildMatchPattern],
+               hot_rules: List[PathAwareGitMatchPattern], cold_rules: List[PathAwareGitMatchPattern],
                pbar: tqdm) -> List[Change]:
     """Compare hot (sub)dir, cold (sub)dir, and cold index. Returns a list of changes required to get them synced.
 
@@ -161,12 +160,23 @@ def sync(args: argparse.Namespace) -> None:
     index = Index(cold_dir)
 
     # Set up progress bar
+    file_count = 0
+    for _, dirs, files in os.walk(hot_dir):
+        file_count += len(dirs) + len(files)
+    for _, dirs, files in os.walk(cold_dir):
+        file_count += len(dirs) + len(files)
     total = 0
-    for file in itertools.chain(walk(hot_dir, root_rules(hot_dir)), walk(cold_dir, root_rules(cold_dir))):
-        total += file.stat().st_size
-    with tqdm(total=total, unit="B", unit_scale=True) as pbar:
+    with tqdm(total=file_count, unit_scale=True, desc="Calculating data size") as pbar:
+        for file in walk(hot_dir, root_rules(hot_dir), pbar):
+            total += file.stat().st_size
+        for file in walk(cold_dir, root_rules(cold_dir), pbar):
+            total += file.stat().st_size
+    with tqdm(total=total, unit="B", unit_scale=True, desc="Detecting changes") as pbar:
         # Find all changes required
         changes = walk_trees(PurePath(), index, hot_dir, cold_dir, root_rules(hot_dir), root_rules(cold_dir), pbar)
+
+    if len(changes):
+        print(f"Found {len(changes)} changes.")
 
     # Confirm each change with the user
     changes.sort(key=attrgetter('name'))
@@ -177,8 +187,12 @@ def sync(args: argparse.Namespace) -> None:
             actions.append(change)
             action_total += change.size
 
+    if not yesno(f"Commence {len(actions)} actions?", False):
+        print("Aborted!")
+        return
+
     # Carry out all confirmed changes
-    with tqdm(total=action_total, unit="B", unit_scale=True) as pbar:
+    with tqdm(total=action_total, unit="B", unit_scale=True, desc="Applying changes") as pbar:
         for change in actions:
             change.apply(args.hot_dir, args.cold_dir, index, pbar)
 
