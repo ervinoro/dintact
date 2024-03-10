@@ -5,7 +5,7 @@ import itertools
 import json
 from collections.abc import MutableMapping
 from pathlib import Path, PurePath
-from typing import Dict, Iterator, Union
+from typing import Dict, Iterator
 
 
 class Index(MutableMapping):
@@ -17,9 +17,9 @@ class Index(MutableMapping):
     :param coding: file encoding to use when reading STD_NAME
     """
     FILENAME = 'index.txt'
-    meta: Union[dict, None] = None
+    meta: dict | None = None
 
-    def __init__(self, cold_dir: Union[Path, None] = None, coding: str = 'utf8') -> None:
+    def __init__(self, cold_dir: Path | None = None, coding: str = 'utf8') -> None:
         super().__init__()
         self.dirs: Dict[PurePath, Index] = {}
         self.files: Dict[PurePath, str] = {}
@@ -81,7 +81,7 @@ class Index(MutableMapping):
         else:
             return False
 
-    def __getitem__(self, k: PurePath) -> Union[str, Index]:
+    def __getitem__(self, k: PurePath) -> str | Index:
         self._validate_key(k)
         if len(k.parts) == 0:
             return self
@@ -95,7 +95,7 @@ class Index(MutableMapping):
         else:
             return self.dirs[PurePath(k.parts[0])][PurePath(*k.parts[1:])]
 
-    def __setitem__(self, k: PurePath, v: Union[str, Index]) -> None:
+    def __setitem__(self, k: PurePath, v: str | Index) -> None:
         self._validate_key(k)
         if len(k.parts) == 0:
             raise ValueError("can't set self (i think)")

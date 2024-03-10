@@ -4,7 +4,7 @@ import os
 import sys
 from operator import attrgetter
 from pathlib import Path, PurePath
-from typing import List, Set, Union
+from typing import List, Set
 
 from tqdm import tqdm
 
@@ -75,7 +75,7 @@ def _compare_files(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: P
 
 def _compare_dirs(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
                   hot_rules: List[PathAwareGitMatchPattern], cold_rules: List[PathAwareGitMatchPattern],
-                  sub_index: Union[Index, None], pbar: tqdm) -> List[Change]:
+                  sub_index: Index | None, pbar: tqdm) -> List[Change]:
     changes: List[Change] = []
 
     add_path_rules(hot_dir / path, hot_rules)

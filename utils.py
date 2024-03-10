@@ -15,6 +15,7 @@ from index import Index
 # noinspection PyShadowingBuiltins
 print = tqdm.write
 
+GITIGNORE = '.gitignore'
 CHUNK_SIZE: int = 4096
 
 
@@ -29,13 +30,13 @@ def root_rules(path: Path) -> List[PathAwareGitMatchPattern]:
 
 
 def add_path_rules(path: Path, rules: List[PathAwareGitMatchPattern]) -> None:
-    if (path / '.gitignore').exists():
-        with open(path / '.gitignore', 'r') as f:
+    if (path / GITIGNORE).exists():
+        with open(path / GITIGNORE, 'r') as f:
             rules.extend(map(lambda r: PathAwareGitMatchPattern(r, path), f.read().splitlines()))
 
 
 def add_scandir_rules(path: Path, children:  list[os.DirEntry[str]], rules: List[PathAwareGitMatchPattern]):
-    gitignore = next((x for x in children if x.name == '.gitignore'), None)
+    gitignore = next((x for x in children if x.name == GITIGNORE), None)
     if gitignore:
         with open(gitignore.path, 'r') as f:
             rules.extend(map(lambda r: PathAwareGitMatchPattern(r, path), f.read().splitlines()))

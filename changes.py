@@ -21,7 +21,7 @@ H C I
 
 """
 from pathlib import Path, PurePath
-from typing import List, Union
+from typing import List
 
 from tqdm import tqdm
 
@@ -98,7 +98,7 @@ class ChangeNeedsFilesMovedAndIndexUpdated(ChangeNeedsFilesMoved):
         name: PurePath,
         size: int,
         rules: List[PathAwareGitMatchPattern],
-        index: Union[Index, str],
+        index: Index | str,
     ):
         super().__init__(name, size, rules)
         self.index = index
@@ -115,7 +115,7 @@ class AddedCopied(Change):
     def __init__(
         self,
         name: PurePath,
-        index: Union[Index, str],
+        index: Index | str,
     ):
         super().__init__(name)
         self.index = index
