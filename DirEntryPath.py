@@ -19,17 +19,17 @@ class DirEntryPath(Path):
         else:
             return super().is_symlink()
 
-    def is_dir(self):
+    def is_dir(self, follow_symlinks=True):
         if self.entry:
-            return self.entry.is_dir()
+            return self.entry.is_dir(follow_symlinks=follow_symlinks)
         else:
-            return super().is_dir()
+            return super().is_dir(follow_symlinks=follow_symlinks)
 
-    def is_file(self):
+    def is_file(self, follow_symlinks=True):
         if self.entry:
-            return self.entry.is_file()
+            return self.entry.is_file(follow_symlinks=follow_symlinks)
         else:
-            return super().is_file()
+            return super().is_file(follow_symlinks=follow_symlinks)
 
     def is_junction(self):
         if self.entry:
