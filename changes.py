@@ -20,6 +20,7 @@ H C I
 0 0 0 NULL
 
 """
+from os import renames
 from pathlib import Path, PurePath
 from typing import List
 
@@ -189,15 +190,16 @@ class Moved(Added):
         index: Index | str,
         original: Removed,
     ):
-        super().__init__(name, size, rules, index)
+        super().__init__(name, 0, rules, index)
         self.original = original
         self.has_been = f"moved from {original.name}"
 
-    action = "copy it to cold backup and remove original from cold backup"
+    action = "rename it in cold backup"
 
     def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
-        super().apply(hot_dir, cold_dir, index, pbar)
-        self.original.apply(hot_dir, cold_dir, index, pbar)
+        renames(cold_dir / self.original.name, cold_dir / self.name)
+        index[self.name] = self.index
+        del index[self.original.name]
 
 
 class RemovedCorrupted(Removed):

@@ -43,10 +43,11 @@ class TestCommon(TestCase):
         self.assertNotEqual(hash(a), hash(10))
 
 
+@patch('changes.renames')
 @patch('changes.rm')
 @patch('changes.cp')
 class TestApplies(TestCase):
-    def test_added_copied(self, cp, rm):  # HCI: 1 1 0, action: add it to cold index
+    def test_added_copied(self, cp, rm, renames):  # HCI: 1 1 0, action: add it to cold index
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = AddedCopied(n, 'x')
         i = Index()
@@ -56,7 +57,7 @@ class TestApplies(TestCase):
         rm.assert_not_called()
         self.assertEqual('x', i[n])
 
-    def test_modified_copied(self, cp, rm):  # HCI: 1 1 2, action: add it to cold index
+    def test_modified_copied(self, cp, rm, renames):  # HCI: 1 1 2, action: add it to cold index
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = ModifiedCopied(n, 'x')
         i = Index()
@@ -67,7 +68,7 @@ class TestApplies(TestCase):
         rm.assert_not_called()
         self.assertEqual('x', i[n])
 
-    def test_added(self, cp, rm):  # HCI: 1 0 0, action: copy it to cold backup
+    def test_added(self, cp, rm, renames):  # HCI: 1 0 0, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = Added(n, 0, [], 'x')
         i = Index()
@@ -77,7 +78,7 @@ class TestApplies(TestCase):
         rm.assert_not_called()
         self.assertEqual('x', i[n])
 
-    def test_modified_lost(self, cp, rm):  # HCI: 1 0 2, action: copy it to cold backup
+    def test_modified_lost(self, cp, rm, renames):  # HCI: 1 0 2, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = ModifiedLost(n, 0, [], 'x')
         i = Index()
@@ -88,7 +89,7 @@ class TestApplies(TestCase):
         rm.assert_not_called()
         self.assertEqual('x', i[n])
 
-    def test_lost(self, cp, rm):  # HCI: 1 0 1, action: copy it to cold backup
+    def test_lost(self, cp, rm, renames):  # HCI: 1 0 1, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = Lost(n, 0, [])
         i = Index()
@@ -98,7 +99,7 @@ class TestApplies(TestCase):
         rm.assert_not_called()
         self.assertNotIn(n, i)
 
-    def test_removed(self, cp, rm):  # HCI: 0 1 1, action: remove it from cold backup
+    def test_removed(self, cp, rm, renames):  # HCI: 0 1 1, action: remove it from cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = Removed(n, 'x')
         i = Index()
@@ -109,7 +110,7 @@ class TestApplies(TestCase):
         rm.assert_called_once_with(c / n)
         self.assertNotIn(n, i)
 
-    def test_removed_corrupted(self, cp, rm):  # HCI: 0 1 2, action: remove it from cold backup
+    def test_removed_corrupted(self, cp, rm, renames):  # HCI: 0 1 2, action: remove it from cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = RemovedCorrupted(n, 'x')
         i = Index()
@@ -120,7 +121,7 @@ class TestApplies(TestCase):
         rm.assert_called_once_with(c / n)
         self.assertNotIn(n, i)
 
-    def test_modified(self, cp, rm):  # HCI: 2 1 1, action: copy it to cold backup
+    def test_modified(self, cp, rm, renames):  # HCI: 2 1 1, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = Modified(n, 0, [], 'x')
         i = Index()
@@ -131,7 +132,7 @@ class TestApplies(TestCase):
         rm.assert_called_once_with(c / n)
         self.assertEqual('x', i[n])
 
-    def test_corrupted(self, cp, rm):  # HCI: 1 2 1, action: copy it to cold backup
+    def test_corrupted(self, cp, rm, renames):  # HCI: 1 2 1, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = Corrupted(n, 0, [])
         i = Index()
@@ -141,7 +142,7 @@ class TestApplies(TestCase):
         rm.assert_called_once_with(c / n)
         self.assertNotIn(n, i)
 
-    def test_modified_corrupted(self, cp, rm):  # HCI: 1 2 3, action: copy it to cold backup
+    def test_modified_corrupted(self, cp, rm, renames):  # HCI: 1 2 3, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = ModifiedCorrupted(n, 0, [], 'x')
         i = Index()
@@ -152,7 +153,7 @@ class TestApplies(TestCase):
         rm.assert_called_once_with(c / n)
         self.assertEqual('x', i[n])
 
-    def test_added_appeared(self, cp, rm):  # HCI: 1 2 0, action: overwrite from hot to cold
+    def test_added_appeared(self, cp, rm, renames):  # HCI: 1 2 0, action: overwrite from hot to cold
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = AddedAppeared(n, 0, [], 'x')
         i = Index()
@@ -162,7 +163,7 @@ class TestApplies(TestCase):
         rm.assert_called_once_with(c / n)
         self.assertEqual('x', i[n])
 
-    def test_appeared(self, cp, rm):  # HCI: 0 1 0, action: delete if from cold backup
+    def test_appeared(self, cp, rm, renames):  # HCI: 0 1 0, action: delete if from cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = Appeared(n)
         i = Index()
@@ -172,7 +173,7 @@ class TestApplies(TestCase):
         rm.assert_called_once_with(c / n)
         self.assertNotIn(n, i)
 
-    def test_removed_lost(self, cp, rm):  # HCI: 0 0 1, action: remove it from index
+    def test_removed_lost(self, cp, rm, renames):  # HCI: 0 0 1, action: remove it from index
         h, c, n = Path('hot'), Path('cold'), Path('name')
         change = RemovedLost(n)
         i = Index()
@@ -183,7 +184,7 @@ class TestApplies(TestCase):
         rm.assert_not_called()
         self.assertNotIn(n, i)
 
-    def test_moved(self, cp, rm):  # HCI: 2 1 1, action: copy new and delete old
+    def test_moved(self, cp, rm, renames):  # HCI: 2 1 1, action: copy new and delete old
         h, c, n1, n2 = Path('hot'), Path('cold'), Path('name1'), Path('name2')
         original = Removed(n1, 'x')
         change = Moved(n2, 0, [], 'x', original)
@@ -191,7 +192,8 @@ class TestApplies(TestCase):
         i[n1] = 'x'
         pbar = MagicMock()
         change.apply(h, c, i, pbar)
-        cp.assert_called_once_with(h / n2, c / n2, [], pbar)
-        rm.assert_called_once_with(c / n1)
+        cp.assert_not_called()
+        rm.assert_not_called()
+        renames.assert_called_once_with(c / n1, c / n2)
         self.assertEqual('x', i[n2])
         self.assertNotIn(n1, i)
