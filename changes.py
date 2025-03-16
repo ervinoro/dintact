@@ -76,6 +76,7 @@ class ChangeNeedsFilesMoved(Change):
     :param size: of data to be moved to cold backup in bytes (for progressbar)
     :param rules: rules that should apply to the action for this change
     """
+
     def __init__(
         self,
         name: PurePath,
@@ -93,6 +94,7 @@ class ChangeNeedsFilesMovedAndIndexUpdated(ChangeNeedsFilesMoved):
     :param rules: rules that should apply to the action for this change
     :param index: sub-index with checksums of all new files
     """
+
     def __init__(
         self,
         name: PurePath,
@@ -150,12 +152,52 @@ class Lost(ChangeNeedsFilesMoved):
 
 
 class Removed(Change):
+    """
+    :param name: relative path to the changed entity
+    :param index: sub-index with checksums of what was expected
+    """
+
+    def __init__(
+        self,
+        name: PurePath,
+        index: Index | str,
+    ):
+        super().__init__(name)
+        self.index = index
+
     has_been = "removed"
     action = "remove it from cold backup"
 
     def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
         rm(cold_dir / self.name)
         del index[self.name]
+
+
+class Moved(Added):
+    """
+    :param name: relative path to the changed entity
+    :param size: of data to be moved to cold backup in bytes (for progressbar)
+    :param rules: rules that should apply to the action for this change
+    :param index: sub-index with checksums of all new files
+    """
+
+    def __init__(
+        self,
+        name: PurePath,
+        size: int,
+        rules: List[PathAwareGitMatchPattern],
+        index: Index | str,
+        original: Removed,
+    ):
+        super().__init__(name, size, rules, index)
+        self.original = original
+        self.has_been = f"moved from {original.name}"
+
+    action = "copy it to cold backup and remove original from cold backup"
+
+    def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
+        super().apply(hot_dir, cold_dir, index, pbar)
+        self.original.apply(hot_dir, cold_dir, index, pbar)
 
 
 class RemovedCorrupted(Removed):

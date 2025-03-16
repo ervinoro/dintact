@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from changes import (Added, AddedAppeared, AddedCopied, Appeared, Change,
                      Corrupted, Lost, Modified, ModifiedCopied,
-                     ModifiedCorrupted, ModifiedLost, Removed,
+                     ModifiedCorrupted, ModifiedLost, Moved, Removed,
                      RemovedCorrupted, RemovedLost)
 from index import Index
 
@@ -34,8 +34,8 @@ class TestCommon(TestCase):
         self.assertNotEqual(a, b)
         self.assertNotEqual(hash(a), hash(b))
 
-        a = Removed(PurePath('asdf_name'), 0)
-        b = RemovedCorrupted(PurePath('asdf_name'), 0)
+        a = Removed(PurePath('asdf_name'), 'x')
+        b = RemovedCorrupted(PurePath('asdf_name'), 'x')
         self.assertNotEqual(a, b)
         self.assertNotEqual(hash(a), hash(b))
 
@@ -100,7 +100,7 @@ class TestApplies(TestCase):
 
     def test_removed(self, cp, rm):  # HCI: 0 1 1, action: remove it from cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
-        change = Removed(n)
+        change = Removed(n, 'x')
         i = Index()
         i[n] = 'x'
         pbar = MagicMock()
@@ -111,7 +111,7 @@ class TestApplies(TestCase):
 
     def test_removed_corrupted(self, cp, rm):  # HCI: 0 1 2, action: remove it from cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
-        change = RemovedCorrupted(n)
+        change = RemovedCorrupted(n, 'x')
         i = Index()
         i[n] = 'y'
         pbar = MagicMock()
@@ -182,3 +182,16 @@ class TestApplies(TestCase):
         cp.assert_not_called()
         rm.assert_not_called()
         self.assertNotIn(n, i)
+
+    def test_moved(self, cp, rm):  # HCI: 2 1 1, action: copy new and delete old
+        h, c, n1, n2 = Path('hot'), Path('cold'), Path('name1'), Path('name2')
+        original = Removed(n1, 'x')
+        change = Moved(n2, 0, [], 'x', original)
+        i = Index()
+        i[n1] = 'x'
+        pbar = MagicMock()
+        change.apply(h, c, i, pbar)
+        cp.assert_called_once_with(h / n2, c / n2, [], pbar)
+        rm.assert_called_once_with(c / n1)
+        self.assertEqual('x', i[n2])
+        self.assertNotIn(n1, i)

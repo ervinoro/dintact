@@ -8,6 +8,7 @@ a96faf705af16834e6c632b61e964e1f  Lost/a.txt
 4b2212e31ac97fd4575a0b1c44d8843f  Lost/b.txt
 a96faf705af16834e6c632b61e964e1f  Removed/a.txt
 4b2212e31ac97fd4575a0b1c44d8843f  Removed/b.txt
+f5c0e7635de66b6379b7945d4c474ecd  Moved1.txt
 # comment
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  ModifiedCopied.txt
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  ModifiedCorrupted.txt

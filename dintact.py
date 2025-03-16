@@ -2,6 +2,7 @@
 import argparse
 import os
 import sys
+from collections import defaultdict
 from operator import attrgetter
 from pathlib import Path, PurePath
 from typing import List, Set
@@ -10,7 +11,7 @@ from tqdm import tqdm
 
 from changes import (Added, AddedAppeared, AddedCopied, Appeared, Change,
                      Corrupted, Lost, Modified, ModifiedCopied,
-                     ModifiedCorrupted, ModifiedLost, Removed,
+                     ModifiedCorrupted, ModifiedLost, Moved, Removed,
                      RemovedCorrupted, RemovedLost)
 from index import Index
 from utils import (PathAwareGitMatchPattern, add_path_rules,
@@ -106,9 +107,9 @@ def _compare_dirs(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Pa
             changes.append(Appeared(cold_child))
             pbar.update(sum(file.stat().st_size for file in walk(cold_dir / cold_child, cold_rules)))
         elif hash_tree(cold_dir / cold_child, pbar)[0] == cold_index[cold_child]:
-            changes.append(Removed(cold_child))
+            changes.append(Removed(cold_child, cold_index[cold_child]))
         else:
-            changes.append(RemovedCorrupted(cold_child))
+            changes.append(RemovedCorrupted(cold_child, cold_index[cold_child]))
 
     # H C I: 0 0 1
     for index_child in index_children.difference(hot_children).difference(cold_children):
@@ -148,6 +149,25 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
         return _compare_dirs(path, cold_index, hot_dir, cold_dir, hot_rules, cold_rules, sub_index, pbar)
 
 
+def find_moveds(changes: list[Change]):
+    removeds = defaultdict(list)
+    addeds = defaultdict(list)
+    for change in changes:
+        if isinstance(change, Removed) and type(change) is Removed and isinstance(change.index, str):
+            removeds[change.index].append(change)
+        elif isinstance(change, Added) and type(change) is Added and isinstance(change.index, str):
+            addeds[change.index].append(change)
+
+    for i in set(removeds).intersection(addeds):
+        if len(removeds[i]) != 1 or len(addeds[i]) != 1:
+            continue
+        changes.append(
+            Moved(addeds[i][0].name, addeds[i][0].size, addeds[i][0].rules, addeds[i][0].index, removeds[i][0])
+        )
+        changes.remove(removeds[i][0])
+        changes.remove(addeds[i][0])
+
+
 def sync(args: argparse.Namespace) -> None:
     """Prompt user for each change towards getting hot dir, cold dir and cold index synced
 
@@ -174,6 +194,7 @@ def sync(args: argparse.Namespace) -> None:
     with tqdm(total=total, unit="B", unit_scale=True, desc="Detecting changes") as pbar:
         # Find all changes required
         changes = walk_trees(PurePath(), index, hot_dir, cold_dir, root_rules(hot_dir), root_rules(cold_dir), pbar)
+    find_moveds(changes)
 
     if len(changes):
         print(f"Found {len(changes)} changes.")
