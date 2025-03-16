@@ -49,5 +49,7 @@ class TestWalkTrees(unittest.TestCase):
             Appeared(PurePath('Appeared')),
             RemovedLost(PurePath('RemovedLost')),
             Moved(PurePath('Moved2.txt'), 0, [], 'f5c0e7635de66b6379b7945d4c474ecd',
-                  Removed(PurePath('Moved1.txt'), 'f5c0e7635de66b6379b7945d4c474ecd'))
+                  Removed(PurePath('Moved1.txt'), 'f5c0e7635de66b6379b7945d4c474ecd')),
+            Moved(PurePath('Moved2'), 0, [], Index(),
+                  Removed(PurePath('Moved1'), Index())),
         ], key=repr), sorted(changes, key=repr))

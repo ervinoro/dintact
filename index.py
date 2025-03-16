@@ -3,9 +3,12 @@ from __future__ import annotations
 import datetime
 import itertools
 import json
+from collections import defaultdict
 from collections.abc import MutableMapping
 from pathlib import Path, PurePath
 from typing import Dict, Iterator
+
+import xxhash
 
 
 class Index(MutableMapping):
@@ -18,6 +21,7 @@ class Index(MutableMapping):
     """
     FILENAME = 'index.txt'
     meta: dict | None = None
+    reverse: Dict[str, list] = defaultdict(list)
 
     def __init__(self, cold_dir: Path | None = None, coding: str = 'utf8') -> None:
         super().__init__()
@@ -49,6 +53,7 @@ class Index(MutableMapping):
                     continue
                 checksum, name = line.strip().split("  ", 1)
                 self[PurePath(name)] = checksum
+                self.reverse[checksum].append(PurePath(name))
 
     def store(self):
         """Store to cold backup index file"""
@@ -151,3 +156,15 @@ class Index(MutableMapping):
             return self.__id_members() == other.__id_members()
         else:
             return False
+
+    def xxhash(self):
+        x = xxhash.xxh3_128()
+        for checksum in self.files.values():
+            x.update(checksum)
+        return x
+
+    def __hash__(self):
+        x = self.xxhash()
+        for directory in self.dirs.values():
+            x.update(directory.xxhash().hexdigest())
+        return x.intdigest()

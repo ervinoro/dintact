@@ -153,9 +153,9 @@ def find_moveds(changes: list[Change]):
     removeds = defaultdict(list)
     addeds = defaultdict(list)
     for change in changes:
-        if isinstance(change, Removed) and type(change) is Removed and isinstance(change.index, str):
+        if isinstance(change, Removed) and type(change) is Removed:
             removeds[change.index].append(change)
-        elif isinstance(change, Added) and type(change) is Added and isinstance(change.index, str):
+        elif isinstance(change, Added) and type(change) is Added:
             addeds[change.index].append(change)
 
     for i in set(removeds).intersection(addeds):
