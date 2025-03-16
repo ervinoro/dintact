@@ -168,6 +168,14 @@ def find_moveds(changes: list[Change]):
         changes.remove(addeds[i][0])
 
 
+def find_deduplications(changes: list[Change], index: Index):
+    for change in changes:
+        if (isinstance(change, Removed) and type(change) is Removed and isinstance(change.index, str)
+                and change.index in index.reverse):
+            duplicates = [str(path) for path in index.reverse[change.index] if path != change.name]
+            change.has_been += f" (cold index has duplicates: {duplicates})"
+
+
 def sync(args: argparse.Namespace) -> None:
     """Prompt user for each change towards getting hot dir, cold dir and cold index synced
 
@@ -195,6 +203,7 @@ def sync(args: argparse.Namespace) -> None:
         # Find all changes required
         changes = walk_trees(PurePath(), index, hot_dir, cold_dir, root_rules(hot_dir), root_rules(cold_dir), pbar)
     find_moveds(changes)
+    find_deduplications(changes, index)
 
     if len(changes):
         print(f"Found {len(changes)} changes.")
