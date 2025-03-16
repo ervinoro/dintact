@@ -70,32 +70,32 @@ class TestApplies(TestCase):
 
     def test_added(self, cp, rm, renames):  # HCI: 1 0 0, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
-        change = Added(n, 0, [], 'x')
+        change = Added(n, 'x')
         i = Index()
         pbar = MagicMock()
         change.apply(h, c, i, pbar)
-        cp.assert_called_once_with(h / n, c / n, [], pbar)
+        cp.assert_called_once_with(h / n, c / n, pbar)
         rm.assert_not_called()
         self.assertEqual('x', i[n])
 
     def test_modified_lost(self, cp, rm, renames):  # HCI: 1 0 2, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
-        change = ModifiedLost(n, 0, [], 'x')
+        change = ModifiedLost(n, 'x')
         i = Index()
         i[n] = 'y'
         pbar = MagicMock()
         change.apply(h, c, i, pbar)
-        cp.assert_called_once_with(h / n, c / n, [], pbar)
+        cp.assert_called_once_with(h / n, c / n, pbar)
         rm.assert_not_called()
         self.assertEqual('x', i[n])
 
     def test_lost(self, cp, rm, renames):  # HCI: 1 0 1, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
-        change = Lost(n, 0, [])
+        change = Lost(n)
         i = Index()
         pbar = MagicMock()
         change.apply(h, c, i, pbar)
-        cp.assert_called_once_with(h / n, c / n, [], pbar)
+        cp.assert_called_once_with(h / n, c / n, pbar)
         rm.assert_not_called()
         self.assertNotIn(n, i)
 
@@ -123,43 +123,43 @@ class TestApplies(TestCase):
 
     def test_modified(self, cp, rm, renames):  # HCI: 2 1 1, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
-        change = Modified(n, 0, [], 'x')
+        change = Modified(n, 'x')
         i = Index()
         i[n] = 'y'
         pbar = MagicMock()
         change.apply(h, c, i, pbar)
-        cp.assert_called_once_with(h / n, c / n, [], pbar)
+        cp.assert_called_once_with(h / n, c / n, pbar)
         rm.assert_called_once_with(c / n)
         self.assertEqual('x', i[n])
 
     def test_corrupted(self, cp, rm, renames):  # HCI: 1 2 1, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
-        change = Corrupted(n, 0, [])
+        change = Corrupted(n)
         i = Index()
         pbar = MagicMock()
         change.apply(h, c, i, pbar)
-        cp.assert_called_once_with(h / n, c / n, [], pbar)
+        cp.assert_called_once_with(h / n, c / n, pbar)
         rm.assert_called_once_with(c / n)
         self.assertNotIn(n, i)
 
     def test_modified_corrupted(self, cp, rm, renames):  # HCI: 1 2 3, action: copy it to cold backup
         h, c, n = Path('hot'), Path('cold'), Path('name')
-        change = ModifiedCorrupted(n, 0, [], 'x')
+        change = ModifiedCorrupted(n, 'x')
         i = Index()
         i[n] = 'y'
         pbar = MagicMock()
         change.apply(h, c, i, pbar)
-        cp.assert_called_once_with(h / n, c / n, [], pbar)
+        cp.assert_called_once_with(h / n, c / n, pbar)
         rm.assert_called_once_with(c / n)
         self.assertEqual('x', i[n])
 
     def test_added_appeared(self, cp, rm, renames):  # HCI: 1 2 0, action: overwrite from hot to cold
         h, c, n = Path('hot'), Path('cold'), Path('name')
-        change = AddedAppeared(n, 0, [], 'x')
+        change = AddedAppeared(n, 'x')
         i = Index()
         pbar = MagicMock()
         change.apply(h, c, i, pbar)
-        cp.assert_called_once_with(h / n, c / n, [], pbar)
+        cp.assert_called_once_with(h / n, c / n, pbar)
         rm.assert_called_once_with(c / n)
         self.assertEqual('x', i[n])
 
@@ -187,7 +187,7 @@ class TestApplies(TestCase):
     def test_moved(self, cp, rm, renames):  # HCI: 2 1 1, action: copy new and delete old
         h, c, n1, n2 = Path('hot'), Path('cold'), Path('name1'), Path('name2')
         original = Removed(n1, 'x')
-        change = Moved(n2, 0, [], 'x', original)
+        change = Moved(n2, 'x', original)
         i = Index()
         i[n1] = 'x'
         pbar = MagicMock()

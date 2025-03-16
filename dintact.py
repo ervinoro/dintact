@@ -14,9 +14,8 @@ from changes import (Added, AddedAppeared, AddedCopied, Appeared, Change,
                      ModifiedCorrupted, ModifiedLost, Moved, Removed,
                      RemovedCorrupted, RemovedLost)
 from index import Index
-from utils import (PathAwareGitMatchPattern, add_path_rules,
-                   hash_compare_files, hash_file, hash_tree, is_relevant,
-                   root_rules, walk, yesno)
+from utils import (hash_compare_files, hash_file, hash_tree, is_relevant, walk,
+                   yesno)
 
 # noinspection PyShadowingBuiltins
 print = tqdm.write
@@ -41,7 +40,7 @@ def check(args: argparse.Namespace) -> None:
                 print(f"Verification failed: '{p}'.", file=sys.stderr)
                 fail_count += 1
         # Secondly, check that the index is complete
-        for file in walk(cold_dir, root_rules(cold_dir)):
+        for file in walk(cold_dir):
             rel_path: PurePath = file.relative_to(cold_dir)
             if rel_path not in index:
                 print(f"File missing from index: '{rel_path}'.", file=sys.stderr)
@@ -64,29 +63,25 @@ def _compare_files(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: P
             return []
     else:
         if path not in cold_index:
-            return [AddedAppeared(path, (hot_dir / path).stat().st_size, [], hot_hash)]
+            return [AddedAppeared(path, hot_hash, (hot_dir / path).stat().st_size)]
         elif cold_index[path] != cold_hash:
             if hot_hash == cold_index[path]:
-                return [Corrupted(path, os.path.getsize(hot_dir / path), [])]
+                return [Corrupted(path, os.path.getsize(hot_dir / path))]
             else:
-                return [ModifiedCorrupted(path, os.path.getsize(hot_dir / path), [], hot_hash)]
+                return [ModifiedCorrupted(path, hot_hash, os.path.getsize(hot_dir / path))]
         else:
-            return [Modified(path, (hot_dir / path).stat().st_size, [], hot_hash)]
+            return [Modified(path, hot_hash, (hot_dir / path).stat().st_size)]
 
 
-def _compare_dirs(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
-                  hot_rules: List[PathAwareGitMatchPattern], cold_rules: List[PathAwareGitMatchPattern],
-                  sub_index: Index | None, pbar: tqdm) -> List[Change]:
+def _compare_dirs(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path, sub_index: Index | None,
+                  pbar: tqdm) -> List[Change]:
     changes: List[Change] = []
 
-    add_path_rules(hot_dir / path, hot_rules)
-    add_path_rules(cold_dir / path, cold_rules)
-
     hot_children: Set[PurePath] = set(map(lambda abs_path: abs_path.relative_to(hot_dir),
-                                          filter(lambda p: is_relevant(p, hot_rules),
+                                          filter(lambda p: is_relevant(p),
                                                  (hot_dir / path).iterdir())))
     cold_children: Set[PurePath] = set(map(lambda abs_path: abs_path.relative_to(cold_dir),
-                                           filter(lambda p: is_relevant(p, cold_rules),
+                                           filter(lambda p: is_relevant(p),
                                                   (cold_dir / path).iterdir())))
     index_children: Set[PurePath] = set(map(lambda p: path / p,
                                             sub_index.iterdir() if sub_index is not None else []))
@@ -95,17 +90,17 @@ def _compare_dirs(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Pa
     for hot_child in hot_children.difference(cold_children):
         i, size = hash_tree(hot_dir / hot_child, pbar)
         if hot_child not in cold_index:
-            changes.append(Added(hot_child, size, hot_rules, i))
+            changes.append(Added(hot_child, i, size))
         elif i == cold_index[hot_child]:
-            changes.append(Lost(hot_child, size, hot_rules))
+            changes.append(Lost(hot_child, size))
         else:
-            changes.append(ModifiedLost(hot_child, size, hot_rules, i))
+            changes.append(ModifiedLost(hot_child, i, size))
 
     # H C I: 0 1 X
     for cold_child in cold_children.difference(hot_children):
         if cold_child not in cold_index:
             changes.append(Appeared(cold_child))
-            pbar.update(sum(file.stat().st_size for file in walk(cold_dir / cold_child, cold_rules)))
+            pbar.update(sum(file.stat().st_size for file in walk(cold_dir / cold_child)))
         elif hash_tree(cold_dir / cold_child, pbar)[0] == cold_index[cold_child]:
             changes.append(Removed(cold_child, cold_index[cold_child]))
         else:
@@ -117,15 +112,13 @@ def _compare_dirs(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Pa
 
     # Recursive: (H C I: 1 1 X)
     for child in hot_children & cold_children:
-        ch_changes = walk_trees(child, cold_index, hot_dir, cold_dir, hot_rules[:], cold_rules[:], pbar)
+        ch_changes = walk_trees(child, cold_index, hot_dir, cold_dir, pbar)
         changes.extend(ch_changes)
 
     return changes
 
 
-def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
-               hot_rules: List[PathAwareGitMatchPattern], cold_rules: List[PathAwareGitMatchPattern],
-               pbar: tqdm) -> List[Change]:
+def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path, pbar: tqdm) -> List[Change]:
     """Compare hot (sub)dir, cold (sub)dir, and cold index. Returns a list of changes required to get them synced.
 
     It only returns outermost directories/files for each change (except content changes, which it lists all)
@@ -134,8 +127,6 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
     :param cold_index: the original unchanged cold index
     :param hot_dir: hot base path
     :param cold_dir: cold base path
-    :param hot_rules: files to ignore in hot dir
-    :param cold_rules: files to ignore in cold dir
     :param pbar: will be updated as files get hashed
     :return: All changes between cold and hot directories under current sub path
     """
@@ -146,7 +137,7 @@ def walk_trees(path: PurePath, cold_index: Index, hot_dir: Path, cold_dir: Path,
     elif not (hot_dir / path).is_dir() or not (cold_dir / path).is_dir() or isinstance(sub_index, str):
         raise NotImplementedError("File/Folder name collision")
     else:
-        return _compare_dirs(path, cold_index, hot_dir, cold_dir, hot_rules, cold_rules, sub_index, pbar)
+        return _compare_dirs(path, cold_index, hot_dir, cold_dir, sub_index, pbar)
 
 
 def find_moveds(changes: list[Change]):
@@ -161,11 +152,17 @@ def find_moveds(changes: list[Change]):
     for i in set(removeds).intersection(addeds):
         if len(removeds[i]) != 1 or len(addeds[i]) != 1:
             continue
-        changes.append(
-            Moved(addeds[i][0].name, addeds[i][0].size, addeds[i][0].rules, addeds[i][0].index, removeds[i][0])
-        )
+        changes.append(Moved(addeds[i][0].name, addeds[i][0].index, removeds[i][0]))
         changes.remove(removeds[i][0])
         changes.remove(addeds[i][0])
+
+
+def ignore_index(changes: list[Change]):
+    index = PurePath(Index.FILENAME)
+    for change in changes:
+        if change.name == index and type(change) is Appeared:
+            changes.remove(change)
+            return
 
 
 def find_deduplications(changes: list[Change], index: Index):
@@ -195,13 +192,14 @@ def sync(args: argparse.Namespace) -> None:
         file_count += len(dirs) + len(files)
     total = 0
     with tqdm(total=file_count, unit_scale=True, desc="Calculating data size") as pbar:
-        for file in walk(hot_dir, root_rules(hot_dir), pbar):
+        for file in walk(hot_dir, pbar):
             total += file.stat().st_size
-        for file in walk(cold_dir, root_rules(cold_dir), pbar):
+        for file in walk(cold_dir, pbar):
             total += file.stat().st_size
     with tqdm(total=total, unit="B", unit_scale=True, desc="Detecting changes") as pbar:
         # Find all changes required
-        changes = walk_trees(PurePath(), index, hot_dir, cold_dir, root_rules(hot_dir), root_rules(cold_dir), pbar)
+        changes = walk_trees(PurePath(), index, hot_dir, cold_dir, pbar)
+    ignore_index(changes)
     find_moveds(changes)
     find_deduplications(changes, index)
 
@@ -213,6 +211,8 @@ def sync(args: argparse.Namespace) -> None:
     actions: List[Change] = []
     action_total = 0
     for change in changes:
+        if change.name.suffix.lower() in ['.jpg']:
+            continue
         if yesno(str(change), default=False):
             actions.append(change)
             action_total += change.size

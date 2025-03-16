@@ -22,12 +22,11 @@ H C I
 """
 from os import renames
 from pathlib import Path, PurePath
-from typing import List
 
 from tqdm import tqdm
 
 from index import Index
-from utils import PathAwareGitMatchPattern, cp, rm
+from utils import cp, rm
 
 
 class Change:
@@ -53,6 +52,7 @@ class Change:
         :param hot_dir: hot copy base path
         :param cold_dir: cold copy base path
         :param index: cold copy index, will be modified accordingly
+        :param pbar
         """
 
     def __repr__(self):
@@ -71,57 +71,26 @@ class Change:
         return hash(self.__id_members())
 
 
-class ChangeNeedsFilesMoved(Change):
+class ChangeWithIndex(Change):
     """
     :param name: relative path to the changed entity
     :param size: of data to be moved to cold backup in bytes (for progressbar)
-    :param rules: rules that should apply to the action for this change
+    :param index: sub-index with checksums of all new files
     """
 
     def __init__(
         self,
         name: PurePath,
-        size: int,
-        rules: List[PathAwareGitMatchPattern],
+        index: Index | str,
+        size: int = 0,
     ):
         super().__init__(name, size)
-        self.rules = rules
-
-
-class ChangeNeedsFilesMovedAndIndexUpdated(ChangeNeedsFilesMoved):
-    """
-    :param name: relative path to the changed entity
-    :param size: of data to be moved to cold backup in bytes (for progressbar)
-    :param rules: rules that should apply to the action for this change
-    :param index: sub-index with checksums of all new files
-    """
-
-    def __init__(
-        self,
-        name: PurePath,
-        size: int,
-        rules: List[PathAwareGitMatchPattern],
-        index: Index | str,
-    ):
-        super().__init__(name, size, rules)
         self.index = index
 
 
-class AddedCopied(Change):
-    """
-    :param name: relative path to the changed entity
-    :param index: sub-index with checksums of all new files
-    """
+class AddedCopied(ChangeWithIndex):
     has_been = "added and manually copied (without updating the index)"
     action = "add it to cold index"
-
-    def __init__(
-        self,
-        name: PurePath,
-        index: Index | str,
-    ):
-        super().__init__(name)
-        self.index = index
 
     def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
         index[self.name] = self.index
@@ -131,12 +100,12 @@ class ModifiedCopied(AddedCopied):
     has_been = "modified and manually copied (without updating the index)"
 
 
-class Added(ChangeNeedsFilesMovedAndIndexUpdated):
+class Added(ChangeWithIndex):
     has_been = "added"
     action = "copy it to cold backup"
 
     def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
-        cp(hot_dir / self.name, cold_dir / self.name, self.rules, pbar)
+        cp(hot_dir / self.name, cold_dir / self.name, pbar)
         index[self.name] = self.index
 
 
@@ -144,28 +113,15 @@ class ModifiedLost(Added):
     has_been = "modified in hot and lost from cold backup"
 
 
-class Lost(ChangeNeedsFilesMoved):
+class Lost(Change):
     has_been = "lost from cold backup"
     action = "copy it to cold backup"
 
     def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
-        cp(hot_dir / self.name, cold_dir / self.name, self.rules, pbar)
+        cp(hot_dir / self.name, cold_dir / self.name, pbar)
 
 
-class Removed(Change):
-    """
-    :param name: relative path to the changed entity
-    :param index: sub-index with checksums of what was expected
-    """
-
-    def __init__(
-        self,
-        name: PurePath,
-        index: Index | str,
-    ):
-        super().__init__(name)
-        self.index = index
-
+class Removed(ChangeWithIndex):
     has_been = "removed"
     action = "remove it from cold backup"
 
@@ -174,23 +130,19 @@ class Removed(Change):
         del index[self.name]
 
 
-class Moved(Added):
+class Moved(ChangeWithIndex):
     """
     :param name: relative path to the changed entity
-    :param size: of data to be moved to cold backup in bytes (for progressbar)
-    :param rules: rules that should apply to the action for this change
     :param index: sub-index with checksums of all new files
     """
 
     def __init__(
         self,
         name: PurePath,
-        size: int,
-        rules: List[PathAwareGitMatchPattern],
         index: Index | str,
         original: Removed,
     ):
-        super().__init__(name, 0, rules, index)
+        super().__init__(name, index)
         self.original = original
         self.has_been = f"moved from {original.name}"
 
@@ -206,23 +158,23 @@ class RemovedCorrupted(Removed):
     has_been = "removed (from hot storage) and corrupted (in cold backup)"
 
 
-class Modified(ChangeNeedsFilesMovedAndIndexUpdated):
+class Modified(ChangeWithIndex):
     has_been = "modified"
     action = "overwrite from hot to cold"
 
     def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
         rm(cold_dir / self.name)
-        cp(hot_dir / self.name, cold_dir / self.name, self.rules, pbar)
+        cp(hot_dir / self.name, cold_dir / self.name, pbar)
         index[self.name] = self.index
 
 
-class Corrupted(ChangeNeedsFilesMoved):
+class Corrupted(Change):
     has_been = "corrupted (in cold backup)"
     action = "overwrite from hot to cold"
 
     def apply(self, hot_dir: Path, cold_dir: Path, index: Index, pbar: tqdm):
         rm(cold_dir / self.name)
-        cp(hot_dir / self.name, cold_dir / self.name, self.rules, pbar)
+        cp(hot_dir / self.name, cold_dir / self.name, pbar)
 
 
 class ModifiedCorrupted(Modified):

@@ -2,10 +2,9 @@ import itertools
 import os
 import shutil
 import sys
-from pathlib import Path, PurePosixPath
-from typing import Generator, List, Optional, Tuple, Union
+from pathlib import Path
+from typing import Generator, Optional, Tuple, Union
 
-import pathspec
 import xxhash
 from tqdm import tqdm
 
@@ -15,63 +14,26 @@ from index import Index
 # noinspection PyShadowingBuiltins
 print = tqdm.write
 
-GITIGNORE = '.gitignore'
 CHUNK_SIZE: int = 4096
 
 
-class PathAwareGitMatchPattern(pathspec.patterns.GitWildMatchPattern):
-    def __init__(self, pattern, root: Path, include=None):
-        super().__init__(pattern, include)
-        self.root = root
-
-
-def root_rules(path: Path) -> List[PathAwareGitMatchPattern]:
-    return [PathAwareGitMatchPattern(Index.FILENAME, path)]
-
-
-def add_path_rules(path: Path, rules: List[PathAwareGitMatchPattern]) -> None:
-    if (path / GITIGNORE).exists():
-        with open(path / GITIGNORE, 'r') as f:
-            rules.extend(map(lambda r: PathAwareGitMatchPattern(r, path), f.read().splitlines()))
-
-
-def add_scandir_rules(path: Path, children:  list[os.DirEntry[str]], rules: List[PathAwareGitMatchPattern]):
-    gitignore = next((x for x in children if x.name == GITIGNORE), None)
-    if gitignore:
-        with open(gitignore.path, 'r') as f:
-            rules.extend(map(lambda r: PathAwareGitMatchPattern(r, path), f.read().splitlines()))
-
-
-def is_relevant(path: Path, rules: List[PathAwareGitMatchPattern], skip_first_check: bool = False) -> bool:
-    if not skip_first_check and not (path.is_file() or any(path.iterdir())):
+def is_relevant(path: Path) -> bool:
+    if not (path.is_file() or any(path.iterdir())):
         return False
-    ignored = False
-    for rule in rules:
-        if rule.include is not None:
-            rel_path = str(PurePosixPath(path.relative_to(rule.root)))
-            if path.is_dir():
-                rel_path += '/'  # https://bugs.python.org/issue21039
-            if rule.match_file(rel_path):
-                ignored = rule.include
-    return not ignored
+    return True
 
 
-def walk(path: Path, rules: List[PathAwareGitMatchPattern], pbar: Optional[tqdm] = None) -> Generator[Path, None, None]:
+def walk(path: Path, pbar: Optional[tqdm] = None) -> Generator[Path, None, None]:
     if pbar:
         pbar.update()
-    if not is_relevant(path, rules, True):
-        if pbar and path.is_dir():
-            pbar.update(sum([len(dirs) + len(files) for _, dirs, files in os.walk(path)]))
-        return
     if path.is_file():
         yield path
     elif path.is_dir():
         children = list(os.scandir(path))
         if not children:
             return
-        add_scandir_rules(path, children, rules)
         for child in children:
-            for grandchild_path in walk(DirEntryPath(child), rules[:], pbar):
+            for grandchild_path in walk(DirEntryPath(child), pbar):
                 yield grandchild_path
     else:  # pragma: no cover
         raise ValueError(f"Unknown thing {dir}")
@@ -128,10 +90,10 @@ def hash_tree(path: Path, pbar: tqdm) -> Tuple[Union[Index, str], int]:
         raise NotImplementedError(f"Unknown {path}")
 
 
-def cp(source: Path, target: Path, rules: List[PathAwareGitMatchPattern], pbar: tqdm):
+def cp(source: Path, target: Path, pbar: tqdm):
     assert os.path.exists(source), "can't copy, doesn't exist (internal error)"
     assert not os.path.exists(target), "remove explicitly first (internal error)"
-    for src_f in walk(source, rules):
+    for src_f in walk(source):
         dst_f = target / src_f.relative_to(source)
         dst_f.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src_f, dst_f)
